@@ -30,7 +30,7 @@ for await(const line of createInterface({input:process.stdin,crlfDelay:Infinity}
   let idx=0,events=[], toolResults=0, promptSeen=false, modelContexts=[];
   const streamFn=(_model,context)=>{
    promptSeen ||= context.messages.some(m=>m.role==="system" && String(m.content).includes("Offline deterministic coding task."));
-   modelContexts.push({roles:context.messages.map(m=>m.role),system_prompt:context.messages.find(m=>m.role==="system")?.content??null,user_prompt:context.messages.find(m=>m.role==="user")?.content??null});
+   modelContexts.push({roles:context.messages.map(m=>m.role),system_prompt:context.messages.find(m=>m.role==="system")?.content??null,user_prompt:context.messages.find(m=>m.role==="user")?.content??null,tool_calls:context.messages.filter(m=>m.role==="assistant").flatMap(m=>m.content.filter(p=>p.type==="toolCall").map(p=>({id:p.id,name:p.name,arguments:p.arguments})))});
    const stream=createAssistantMessageEventStream();
    queueMicrotask(()=>{
     const next=scripted[idx++];
