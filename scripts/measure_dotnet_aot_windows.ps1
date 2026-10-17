@@ -28,7 +28,8 @@ for ($i = 0; $i -lt $Iterations; $i++) {
     }
     $wall.Add($timer.Elapsed.TotalMilliseconds)
     $cpu.Add($p.TotalProcessorTime.TotalMilliseconds)
-    $rss.Add($p.PeakWorkingSet64 / 1MB)
+    $peakBytes = $p.PeakWorkingSet64
+    if ($peakBytes -gt 0) { $rss.Add($peakBytes / 1MB) }
   } finally {
     $p.Dispose()
   }
@@ -39,6 +40,7 @@ function Median([double[]]$values) {
   if ($sorted.Count % 2 -eq 0) { return (($sorted[$mid - 1] + $sorted[$mid]) / 2.0) }
   return $sorted[$mid]
 }
+$rssMedian = if ($rss.Count -gt 0) { Median $rss.ToArray() } else { $null }
 $result = [ordered]@{
   kind = 'process_probe_only_not_agent_parity'
   language = 'C#'
@@ -49,9 +51,10 @@ $result = [ordered]@{
   iterations = $Iterations
   wall_ms_median = (Median $wall.ToArray())
   cpu_ms_median = (Median $cpu.ToArray())
-  peak_rss_mib_median = (Median $rss.ToArray())
+  peak_rss_mib_median = $rssMedian
+  rss_status = $(if ($null -eq $rssMedian) { 'unavailable_after_fast_process_exit' } else { 'reported_by_process_api' })
   binary_bytes = (Get-Item $exe).Length
-  warning = 'Process probe only. Windows Process CPU resolution may be coarse; not agent feature parity.'
+  warning = 'Process probe only. Windows Process CPU resolution may be coarse; RSS may be unavailable for short-lived exited processes. Not agent feature parity.'
 }
 $parent = Split-Path -Parent $Out
 New-Item -ItemType Directory -Path $parent -Force | Out-Null
