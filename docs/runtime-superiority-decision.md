@@ -44,3 +44,18 @@ Artifacts: `pi-aot-cold-linux-x64`, `pi-aot-cold-linux-arm64`, `pi-aot-cold-win-
 **Narrow elimination:** `fresh-Node-process-per-single-tool-invocation` is an objectively **inferior deployment pattern** to the tested Native AOT probe on these cold workloads. **The Pi architecture itself is NOT eliminated**, since its genuine agent keeps Node running and avoids repeatedly importing its tooling for each operation. Neither Rust/Go/Bun was compared with this identical workload in this run, so none of them is eliminated or ranked against C# by this result. C# is still a deliberately incomplete subset and not a replacement. Any proposal to change FineCode's core must await warmed-agent, same-task and full-quality benchmarks.
 
 **Gate decision:** eliminate defective pinned Python candidate and the *cold reinitialize-Node-on-every-tool-call design*, retain Pi TypeScript as production reference; Rust, Go, Bun and C# remain subject to comparable functional/performance gates.
+
+## Pinned Go versus genuine Pi — warm tools (2026-10-17)
+
+[GitHub Actions #39045890135](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39045890135): **Linux x64 PASS and Linux ARM64 PASS**. Both runners built **pinned Pi TS/Node** and the immutable Go port SHA `53708dc48e03cdf59b7d7f63f059c65ad4bb45dc`. Only **test adapters** were copied into the working GitHub Actions checkout; upstream repositories were not modified. The benchmark kept both tool processes alive, executed actual exported `read` and `grep` tools against identical fixture content, randomized execution order for **60 pairs per runner**, and required **exact JSON text-output equality** on every comparison: **120/120 matching responses**.
+
+| Target | Pi TS/Node median all calls | Go median all calls | Relative warm latency (Pi/Go) | Pi read | Go read | Pi grep | Go grep |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Linux x64 | 2.1092 ms | 0.0921 ms | 22.9× | 0.5623 ms | 0.0920 ms | 3.6398 ms | 0.0925 ms |
+| Linux ARM64 | 2.2454 ms | 0.1127 ms | 19.9× | 0.5243 ms | 0.0995 ms | 3.9979 ms | 0.1186 ms |
+
+Artifacts `pi-go-warm-linux-x64`, `pi-go-warm-linux-arm64` contain case-level timings and outputs-gated summaries. The Go candidate uses its **own in-process tool implementation**, while original Pi grep commonly calls `rg` as a child. This is a meaningful same-run tool implementation difference, not just an AOT startup result. It also means the compared tool mechanisms and resource accounting differ: no per-child CPU or RSS was measured, and neither full agent loop nor provider/token costs were exercised.
+
+**Eliminatory claim scoped to this exact workload:** the original Pi Node tools are **not the lowest-latency option** for these warmed `read`/`grep` fixtures. The Go candidate must **not** be declared an agent winner without a larger parity/quality and full-task cost matrix, and this evidence cannot eliminate Pi as a mature functional reference.
+
+The Rust pinned port's own source explicitly states that its `grep`/`find` search skips `.git` but does not fully honor `.gitignore`. A separately executable actual-Pi differential suite (`pi-rust-gitignore-eligibility.yml`) is being validated before issuing an elimination decision. **Do not eliminate Rust from an adapter's build failure.**
