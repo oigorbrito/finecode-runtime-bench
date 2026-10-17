@@ -80,3 +80,21 @@ The harness compares successful tool text output **byte-for-byte after UTF-8 dec
 | Windows x64 | 8/8 PASS | 5/5 PASS | DIFFERENT (expected) |
 
 **Decision:** `BOUNDED_LITERAL_REGEX_GREP=PASS`, `BOUNDED_RECURSIVE_BASENAME_FIND=PASS`, `FIND_GITIGNORE_COMPATIBILITY=FAIL/NOT_IMPLEMENTED`; overall `FULL_PI_GREP_FIND_PARITY=NOT_PROVEN`. No direct performance ranking or FineCode core migration justified. Implementing full gitignore handling, symlink traversal, path-aware globs, streaming, cancellation, output limits and tool-envelope equivalence requires separate source-based and executable tests.
+
+## Reusing Pi's actual fd executable from C# Native AOT — verified gate
+
+[GitHub Actions #39040655085](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39040655085): 3/3 jobs **PASS** on Linux x64, Linux ARM64 and Windows x64. The identical pinned Pi tool was executed against the same fixtures as two experimental C# strategies:
+
+1. `find-subset` is independently implemented in C# with recursive file enumeration, and is intentionally **not** gitignore-aware.
+2. `find-fd-subset` is a **C# Native AOT wrapper around the same `fd` executable resolved by Pi's `ensureTool("fd")`**. It passes Pi-aligned flags and formats returned file paths. This creates an **external fd binary dependency**, rather than implementing fd/gitignore logic in C#.
+
+| Measured contract / runner | Linux x64 | Linux ARM64 | Windows x64 |
+| --- | ---: | ---: | ---: |
+| Previous bounded `grep` positive tests | 8/8 | 8/8 | 8/8 |
+| Independently implemented `find-subset` positives | 5/5 | 5/5 | 5/5 |
+| New fd-delegated `find-fd-subset` comparisons | 4/4 | 4/4 | 4/4 |
+| Native `find-subset` gitignore divergence | observed | observed | observed |
+
+Across all targets: **39 existing positive tests PASS + 12 fd-delegation comparisons PASS**, and **three intentionally observed native gitignore mismatches remain**. The delegated fd test includes an ignored `*.tmp` file inside an initialized Git repo, a git repository case without glob matches, and recursive basename glob fixtures. The positive comparisons are output-identical to the pinned Pi results, and the native mismatch is separately asserted rather than hidden or counted as compatible. Each runner uploads case-level `live-pi-grep-find-<rid>` JSON evidence.
+
+**Engineering decision:** a lightweight C# launcher can reuse the same optimized `fd` search backend as Pi on all three runner classes. This removes the *observed gitignore mismatch in the delegated branch only* while preserving the independent C# implementation as a known incomplete exploratory variant. It **does not** prove complete `find` semantics (all complex glob behaviors, nested ignore exceptions, symlinks, cancellation, result limits, streaming) or agent parity, and does not justify changing FineCode's TypeScript core. No automatic merge and no modification to main FineCode.
