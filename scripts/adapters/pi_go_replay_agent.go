@@ -46,7 +46,7 @@ func main(){
     return result
    }
    a:=agent.NewAgent(agent.AgentOptions{
-    InitialState:&agent.AgentState{Model:&ai.Model{ID:"replay",Name:"replay",Api:"replay",Provider:"replay"},Tools:tools},
+    InitialState:&agent.AgentState{SystemPrompt:"Offline deterministic coding task.",Model:&ai.Model{ID:"replay",Name:"replay",Api:"replay",Provider:"replay"},Tools:tools},
     StreamFn:stream,
     ToolExecution:agent.ToolSequential,
    })
