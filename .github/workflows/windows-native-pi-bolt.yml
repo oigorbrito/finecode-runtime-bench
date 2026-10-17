@@ -24,8 +24,10 @@ jobs:
           bun-version: latest
       - name: Checkout original and Pi-Bolt fork
         run: |
-          git clone --depth 1 https://github.com/earendil-works/pi.git original
-          git clone --depth 1 https://github.com/opensec-git/Pi-Bolt.git bolt
+          git clone --depth 1 --branch v1.3.0 https://github.com/earendil-works/pi.git original
+          git clone --depth 1 --branch pi-bolt https://github.com/opensec-git/Pi-Bolt.git bolt
+          $sources = Get-Content bolt/sources.json -Raw | ConvertFrom-Json
+          if ($sources.pi.tag -ne 'v1.3.0') { throw "Pi-Bolt upstream tag changed: $($sources.pi.tag)" }
           git -C original rev-parse HEAD | Out-File -Encoding utf8 original-sha.txt
           git -C bolt rev-parse HEAD | Out-File -Encoding utf8 bolt-sha.txt
           node --version
