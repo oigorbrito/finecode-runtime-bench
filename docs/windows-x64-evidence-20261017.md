@@ -38,3 +38,7 @@ Run [39001216399](https://github.com/oigorbrito/finecode-runtime-bench/actions/r
 3. Diagnostic `go test -overlay ... ./coding -run TestLoadSkillsPreservesDiscoveryOrder -count=1 -v`, virtual fixture copy containing `t.Setenv("USERPROFILE", home)` immediately after `t.Setenv("HOME", home)`: **PASS**.
 
 This controlled A/B supports a Windows-specific test fixture environment mismatch, not a fix to the Go port, and resolves **only the diagnostic hypothesis**. The upstream test gate intentionally stays FAIL. TypeScript official scripts still fail `spawnSync npm ENOENT`. Rust official `rpi-cli` suite again fails its path-alias assertion (503 passed, 1 failed, 2 ignored), while native builds and help checks pass. No source files of the candidate repositories are edited.
+
+## Controlled Windows Go home-fixture result
+
+[Run 39001216399](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39001216399): Go diagnostic step `Controlled Go HOME versus USERPROFILE test using overlay` **SUCCESS**; official Go test gate **FAIL**. The overlay changed only the in-memory test fixture to set `USERPROFILE` alongside `HOME`; pinned candidate source was not edited. This establishes that aligning Windows home variables resolves the isolated skill discovery test under the runner, not the remaining Go test failures. Rust and TypeScript official gates also FAIL in this run. No runtime migration authorized.
