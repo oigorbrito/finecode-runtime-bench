@@ -1,0 +1,42 @@
+name: Go exploratory baseline
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'sources.json'
+      - 'scripts/**'
+      - '.github/workflows/go-exploratory.yml'
+permissions:
+  contents: read
+jobs:
+  go-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned Go port
+        run: python3 scripts/checkout.py pi_go
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vendor/pi_go/go.mod
+          cache: false
+      - name: Go toolchain
+        run: go version
+      - name: Official offline tests and build
+        working-directory: vendor/pi_go
+        run: |
+          go test ./...
+          go build -o pi-bench ./cmd/pi
+      - name: CLI help measurement (not comparable to --version)
+        run: python3 scripts/measure.py --name pi_go_help --out results/pi_go_help.json -- vendor/pi_go/pi-bench --help
+      - name: Publish evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-pi_go-${{ matrix.runner }}
+          path: results/*.json
+          if-no-files-found: ignore
