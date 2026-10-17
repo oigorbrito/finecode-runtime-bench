@@ -66,6 +66,58 @@ if (args.Length >= 2 && args.Length <= 4 && args[0] == "read-subset")
     }
 }
 
+
+// Deliberately bounded adapters: single-file literal grep and nonrecursive basename-glob find.
+// No claim of full upstream grep/find tool parity.
+if (args.Length == 3 && args[0] == "grep-subset")
+{
+    try
+    {
+        string file = args[1], needle = args[2];
+        if (needle.Length == 0) { Environment.ExitCode = 2; return; }
+        string[] lines = File.ReadAllText(file, Encoding.UTF8).Split('\n');
+        var output = new System.Collections.Generic.List<string>();
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i].TrimEnd('\r');
+            if (line.Contains(needle, StringComparison.Ordinal))
+                output.Add($"{Path.GetFileName(file)}:{i + 1}: {line}");
+        }
+        Console.Write(output.Count == 0 ? "No matches found" : string.Join("\n", output));
+        return;
+    }
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine("grep-subset failed: " + e.GetType().Name);
+        Environment.ExitCode = 2;
+        return;
+    }
+}
+if (args.Length == 3 && args[0] == "find-subset")
+{
+    try
+    {
+        string root = args[1], pattern = args[2];
+        if (!Directory.Exists(root)) { Console.Error.WriteLine("Path not found"); Environment.ExitCode = 2; return; }
+        var output = new System.Collections.Generic.List<string>();
+        foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.TopDirectoryOnly))
+        {
+            string name = Path.GetFileName(file);
+            if (System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(pattern, name, ignoreCase: false))
+                output.Add(name);
+        }
+        output.Sort(StringComparer.Ordinal);
+        Console.Write(output.Count == 0 ? "No files found matching pattern" : string.Join("\n", output));
+        return;
+    }
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine("find-subset failed: " + e.GetType().Name);
+        Environment.ExitCode = 2;
+        return;
+    }
+}
+
 if (args.Length == 3 && args[0] == "scan-file")
 {
     if (args[2].Length == 0)
