@@ -57,13 +57,25 @@ with tempfile.TemporaryDirectory() as temp:
      if "content" in value:return text_parts(value["content"])
      if "Content" in value:return text_parts(value["Content"])
     return []
+   def canonical_calls(context):
+    calls=[]
+    for p in context.get("tool_calls",[]):
+     if not isinstance(p,dict):continue
+     name=p.get("name",p.get("Name"))
+     ident=p.get("id",p.get("ID"))
+     args=p.get("arguments",p.get("Arguments"))
+     if isinstance(args,str):
+      try:args=json.loads(args)
+      except json.JSONDecodeError:pass
+     calls.append({"id":ident,"name":name,"arguments":args})
+    return calls
    baseline_contexts=results["node"]["model_contexts"]
    for candidate in ("bun","go"):
     contexts=results[candidate].get("model_contexts")
     if not contexts or len(contexts)!=5 or len(baseline_contexts)!=5:
      raise AssertionError(f"ELIMINATION_GATE missing model contexts round={idx} candidate={candidate}: {contexts}")
     for turn,(base,other) in enumerate(zip(baseline_contexts,contexts)):
-     if base["roles"]!=other["roles"] or base["system_prompt"]!=other["system_prompt"] or text_parts(base["user_prompt"])!=text_parts(other["user_prompt"]):
+     if base["roles"]!=other["roles"] or base["system_prompt"]!=other["system_prompt"] or text_parts(base["user_prompt"])!=text_parts(other["user_prompt"]) or canonical_calls(base)!=canonical_calls(other):
       raise AssertionError(f"ELIMINATION_GATE model-facing context differs round={idx} turn={turn} candidate={candidate} node={base} candidate_context={other}")
    baseline_roles=results["node"]["message_roles"]
    for candidate in ("bun","go"):
