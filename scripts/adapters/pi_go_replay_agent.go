@@ -16,7 +16,7 @@ import (
 )
 type Req struct{Filename string `json:"filename"`}
 type Result struct{OK bool `json:"ok"`; Elapsed float64 `json:"elapsed_ms"`;Turns int `json:"turns"`;ToolResults int `json:"tool_results"`;Messages int `json:"messages"`;MessageRoles []string `json:"message_roles"`;ModelContexts []ModelContext `json:"model_contexts"`;FinalText string `json:"final_text"`;PromptSeen bool `json:"model_system_prompt_seen"`;Events []string `json:"events"`;Error string `json:"error,omitempty"`}
-type ModelContext struct{Roles []string `json:"roles"`;SystemPrompt string `json:"system_prompt"`;UserPrompt string `json:"user_prompt"`}
+type ModelContext struct{Roles []string `json:"roles"`;SystemPrompt string `json:"system_prompt"`;UserPrompt any `json:"user_prompt"`}
 func main(){
  root,err:=filepath.Abs(os.Args[1]);if err!=nil{panic(err)}
  var tools []agent.AgentTool
@@ -38,7 +38,7 @@ func main(){
    idx:=0
    stream:=func(ctx context.Context,model *ai.Model,req ai.Context,opts *ai.SimpleStreamOptions)*ai.AssistantMessageEventStream{
     reply.PromptSeen = reply.PromptSeen || strings.Contains(req.SystemPrompt,"Offline deterministic coding task.")
-    roles:=[]string{"system"};userPrompt:="";for _,m:=range req.Messages{roles=append(roles,string(m.MessageRole()));if m.MessageRole()=="user" && userPrompt==""{data,_:=json.Marshal(m);var obj map[string]any;_ = json.Unmarshal(data,&obj);if s,ok:=obj["content"].(string);ok{userPrompt=s}}};reply.ModelContexts=append(reply.ModelContexts,ModelContext{Roles:roles,SystemPrompt:req.SystemPrompt,UserPrompt:userPrompt})
+    roles:=[]string{"system"};var userPrompt any;for _,m:=range req.Messages{roles=append(roles,string(m.MessageRole()));if m.MessageRole()=="user" && userPrompt==nil{data,_:=json.Marshal(m);var obj map[string]any;_ = json.Unmarshal(data,&obj);if v,ok:=obj["content"];ok{userPrompt=v}}};reply.ModelContexts=append(reply.ModelContexts,ModelContext{Roles:roles,SystemPrompt:req.SystemPrompt,UserPrompt:userPrompt})
     var msg *ai.AssistantMessage
     if idx<len(calls){msg=&ai.AssistantMessage{Content:ai.ContentList{calls[idx]},StopReason:ai.StopToolUse,Model:"replay"}}else{
      msg=&ai.AssistantMessage{Content:ai.ContentList{ai.TextContent{Text:"task finished"}},StopReason:ai.StopStop,Model:"replay"}
@@ -61,7 +61,7 @@ func main(){
     return nil
    })
    t:=time.Now()
-   e:=a.Prompt(context.Background(),"Repair Python calculate and verify it")
+   e:=a.Prompt(context.Background(),"Repair the Python calculate function and verify it.")
    reply.Elapsed=float64(time.Since(t).Nanoseconds())/1e6
    reply.Turns=idx;reply.Messages=len(a.State().Messages);for _,m:=range a.State().Messages{reply.MessageRoles=append(reply.MessageRoles,string(m.MessageRole()))}
    content,readErr:=os.ReadFile(filename)
