@@ -3,6 +3,8 @@ on:
   push:
     branches: [bench-pi-bolt-isolated-vs-full]
   workflow_dispatch:
+  pull_request:
+    branches: [bench-dotnet-native-aot]
 permissions:
   contents: read
 jobs:
