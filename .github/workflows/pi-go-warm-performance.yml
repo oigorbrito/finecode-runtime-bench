@@ -1,0 +1,56 @@
+name: Pinned Pi Node versus Go warm tool performance
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/pi-go-warm-performance.yml'
+      - 'scripts/adapters/pi_go_warm_main.go'
+      - 'scripts/adapters/pi_ts_warm.mjs'
+      - 'scripts/compare_pi_go_warm_performance.py'
+      - 'sources.json'
+permissions:
+  contents: read
+jobs:
+  warm-go-vs-node:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, arch: linux-x64 }
+          - { os: ubuntu-24.04-arm, arch: linux-arm64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Clone immutable original Pi and Go port
+        run: |
+          python3 scripts/checkout.py pi_ts
+          python3 scripts/checkout.py pi_go
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vendor/pi_go/go.mod
+          cache: false
+      - name: Build pinned original Pi
+        working-directory: vendor/pi_ts
+        run: |
+          npm install --ignore-scripts
+          npm run hydrate:model-data
+          npm run build:offline
+      - name: Build exported Go tool API adapter without changing pinned repository
+        run: |
+          mkdir -p vendor/pi_go/cmd/finecode-bench
+          cp scripts/adapters/pi_go_warm_main.go vendor/pi_go/cmd/finecode-bench/main.go
+          cd vendor/pi_go
+          go build -o ../../pi-go-warm-bench ./cmd/finecode-bench
+      - name: Head to head same-run persistent warm tool operations
+        run: |
+          python3 scripts/compare_pi_go_warm_performance.py --go-binary pi-go-warm-bench --pairs 60 --out results/pi-go-warm-${{ matrix.arch }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pi-go-warm-${{ matrix.arch }}
+          path: results/pi-go-warm-${{ matrix.arch }}.json
+          if-no-files-found: ignore
