@@ -1,0 +1,47 @@
+name: Candidate elimination - pinned Python port integrity
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/eliminate-python-port.yml'
+      - 'sources.json'
+      - 'scripts/python_source_integrity.py'
+permissions:
+  contents: read
+jobs:
+  python-port-eligibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch exact pinned Python candidate
+        run: python3 scripts/checkout.py pi_python
+      - name: Check blocker from immutable source
+        run: |
+          python3 scripts/python_source_integrity.py --source vendor/pi_python --out results/pi-python-source-integrity.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path('results/pi-python-source-integrity.json')
+          evidence=json.loads(path.read_text())
+          assert evidence['source_import_present'] is True, evidence
+          assert evidence['env_python_module_exists'] is False, evidence
+          assert evidence['status']=='missing_upstream_source_module', evidence
+          evidence['candidate_eligibility']='ELIMINATED_PINNED_REVISION'
+          evidence['elimination_reason']='Required imported module missing from exact upstream commit; full agent comparison blocked'
+          evidence['elimination_scope']='Only this Python port revision. Not Python language or repaired versions.'
+          evidence['required_next_gate']='Restore module upstream, rerun official suite and same-workload benchmark'
+          path.write_text(json.dumps(evidence,indent=2)+'\n')
+          print('ELIMINATED_PINNED_REVISION: pi_python source cannot resolve required local harness module')
+          PY
+      - name: Upload machine-readable elimination evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eliminated-python-port-${{ matrix.os }}
+          path: results/pi-python-source-integrity.json
+          if-no-files-found: error
