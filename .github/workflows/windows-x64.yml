@@ -44,6 +44,8 @@ jobs:
           npm run build:offline
           exit $LASTEXITCODE
       - name: Pi TypeScript official scripts (upstream gate)
+        id: official_ts
+        continue-on-error: true
         if: matrix.candidate == 'pi_ts'
         shell: pwsh
         working-directory: vendor/pi_ts
@@ -51,6 +53,8 @@ jobs:
           npm run test:scripts
           exit $LASTEXITCODE
       - name: Pi Rust official tests
+        id: official_rust
+        continue-on-error: true
         if: matrix.candidate == 'pi_rust'
         shell: pwsh
         working-directory: vendor/pi_rust
@@ -64,13 +68,20 @@ jobs:
         run: |
           cargo build --release --locked -p rpi-cli
           exit $LASTEXITCODE
-      - name: Pi Go official tests and build
+      - name: Pi Go official tests
+        id: official_go
+        continue-on-error: true
         if: matrix.candidate == 'pi_go'
         shell: pwsh
         working-directory: vendor/pi_go
         run: |
           go test ./...
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          exit $LASTEXITCODE
+      - name: Pi Go native CLI build
+        if: matrix.candidate == 'pi_go'
+        shell: pwsh
+        working-directory: vendor/pi_go
+        run: |
           go build -o pi-bench.exe ./cmd/pi
           exit $LASTEXITCODE
       - name: Capture CLI contract
@@ -92,3 +103,13 @@ jobs:
           name: windows-${{ matrix.candidate }}-x64
           path: results/*.json
           if-no-files-found: ignore
+      - name: Enforce official upstream test result
+        if: always()
+        shell: pwsh
+        run: |
+          $candidate = '${{ matrix.candidate }}'
+          $outcome = if ($candidate -eq 'pi_ts') { '${{ steps.official_ts.outcome }}' } elseif ($candidate -eq 'pi_rust') { '${{ steps.official_rust.outcome }}' } else { '${{ steps.official_go.outcome }}' }
+          if ($outcome -ne 'success') {
+            Write-Error "Official upstream test gate for $candidate: $outcome"
+            exit 1
+          }
