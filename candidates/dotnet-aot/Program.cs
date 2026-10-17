@@ -16,6 +16,62 @@ if (args.Length == 1 && args[0] == "--version")
     Console.WriteLine("0.2.0-probe");
     return;
 }
+// Docker-only negative boundary probe. Never claims host-wide sandbox isolation.
+// The CI launches this as non-root, read-only, no-network and no-capability.
+if (args.Length == 1 && args[0] == "sandbox-probe")
+{
+    bool readonlyDenied = false;
+    bool tmpfsWritable = false;
+    bool networkDenied = false;
+    bool noEffectiveCaps = false;
+    string nonce = Guid.NewGuid().ToString("N");
+    try
+    {
+        File.WriteAllText("/var/tmp/finecode-" + nonce, "forbidden");
+    }
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+    {
+        readonlyDenied = true;
+    }
+    try
+    {
+        string tempFile = Path.Combine("/tmp", "finecode-" + nonce);
+        File.WriteAllText(tempFile, "temporary");
+        tmpfsWritable = File.ReadAllText(tempFile) == "temporary";
+        File.Delete(tempFile);
+    }
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    try
+    {
+        using var client = new System.Net.Sockets.TcpClient();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(1000));
+        await client.ConnectAsync(System.Net.IPAddress.Parse("1.1.1.1"), 53, deadline.Token);
+    }
+    catch (Exception e) when (e is System.Net.Sockets.SocketException or OperationCanceledException)
+    {
+        networkDenied = true;
+    }
+    try
+    {
+        string status = File.ReadAllText("/proc/self/status");
+        noEffectiveCaps = status.Split('\n').Any(line => line.StartsWith("CapEff:", StringComparison.Ordinal)
+            && line["CapEff:".Length..].Trim().TrimStart('0').Length == 0);
+    }
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    var result = new
+    {
+        kind = "docker_sandbox_negative_boundary_probe",
+        readonly_root_denied = readonlyDenied,
+        tmpfs_writable = tmpfsWritable,
+        external_tcp_denied = networkDenied,
+        effective_capabilities_zero = noEffectiveCaps
+    };
+    Console.WriteLine(JsonSerializer.Serialize(result));
+    if (!readonlyDenied || !tmpfsWritable || !networkDenied || !noEffectiveCaps)
+        Environment.ExitCode = 1;
+    return;
+}
+
 // Deterministic process-tree safety fixture; NOT Pi tool parity or production command.
 if (args.Length == 3 && args[0] == "process-tree-probe")
 {
