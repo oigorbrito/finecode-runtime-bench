@@ -1,6 +1,7 @@
 name: Offline baseline
 on:
   workflow_dispatch:
+  pull_request:
 permissions:
   contents: read
 jobs:
@@ -22,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: matrix.candidate == 'pi_ts'
         with:
-          node-version: '22'
+          node-version: '24'
       - uses: dtolnay/rust-toolchain@stable
         if: matrix.candidate == 'pi_rust'
       - uses: astral-sh/setup-uv@v6
@@ -34,6 +35,7 @@ jobs:
         working-directory: vendor/pi_ts
         run: |
           npm install --ignore-scripts
+          npm run hydrate:model-data
           npm run build:offline
           npm run test:scripts
       - name: Pi Rust smoke
@@ -46,8 +48,9 @@ jobs:
         if: matrix.candidate == 'pi_python'
         working-directory: vendor/pi_python
         run: |
-          uv sync
-          uv run pytest -q
+          uv sync --all-packages
+          python3 ../../scripts/python_source_integrity.py --source . --out ../../results/pi_python_integrity.json
+          uv run --all-packages pytest -q
       - name: Pi TypeScript CLI startup
         if: matrix.candidate == 'pi_ts'
         run: python3 scripts/measure.py --name pi_ts --out results/pi_ts.json -- node vendor/pi_ts/packages/coding-agent/dist/cli.js --version
