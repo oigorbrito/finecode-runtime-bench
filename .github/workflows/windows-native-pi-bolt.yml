@@ -40,6 +40,13 @@ jobs:
           python scripts/token_usage.py mock-pi-events.jsonl --out mock-pi-summary.jsonl
           python -c "import json; x=json.load(open('mock-pi-summary.jsonl',encoding='utf-8')); assert (x['input_tokens'],x['output_tokens'],x['cache_read_tokens']) == (20,7,3); assert x['usage_complete']"
           python -c "from pathlib import Path; assert 'private response' not in Path('mock-pi-events.jsonl').read_text()"
+          @'
+          {"run_id":"paired-1","task_id":"python-1","variant":"pi","request_index":0,"input_tokens":90,"output_tokens":10,"provider_reported_total_tokens":100}
+          {"run_id":"paired-1","task_id":"python-1","variant":"bolt","request_index":0,"input_tokens":70,"output_tokens":10,"provider_reported_total_tokens":80}
+          '@ | Set-Content -Encoding utf8 mock-paired-events.jsonl
+          python scripts/token_usage.py mock-paired-events.jsonl --out mock-paired-summary.jsonl
+          python scripts/compare_token_usage.py mock-paired-summary.jsonl --baseline pi --candidate bolt | Set-Content -Encoding utf8 mock-paired-comparison.jsonl
+          python -c "import json; x=json.load(open('mock-paired-comparison.jsonl',encoding='utf-8-sig')); assert x['candidate_delta_pct'] == -20.0"
           python scripts/token_usage.py mock-token-events.jsonl --out mock-token-summary.jsonl
           python -c "import json; x=json.load(open('mock-token-summary.jsonl',encoding='utf-8')); assert (x['input_tokens'],x['output_tokens'],x['cache_read_tokens']) == (20,7,3); assert x['reasoning_tokens'] is None; assert x['usage_complete']"
       - name: Checkout original and Pi-Bolt fork
@@ -115,6 +122,7 @@ jobs:
         with:
           name: windows-native-pi-bolt-evidence
           path: |
+            mock-paired-comparison.jsonl
             mock-pi-summary.jsonl
             mock-token-summary.jsonl
             original-sha.txt
