@@ -9,6 +9,7 @@ on:
       - 'scripts/measure_dotnet_aot_windows.ps1'
       - 'scripts/verify_dotnet_scan_contract.py'
       - 'scripts/verify_dotnet_read_subset.py'
+      - 'scripts/verify_dotnet_process_tree_timeout.py'
 permissions:
   contents: read
 jobs:
@@ -64,6 +65,11 @@ jobs:
         run: |
           python scripts/verify_dotnet_read_subset.py --binary "candidates/dotnet-aot/out/${{ matrix.executable }}" --out "results/dotnet-read-subset-${{ matrix.rid }}.json"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Deterministic timeout and no surviving child/grandchild
+        shell: pwsh
+        run: |
+          python scripts/verify_dotnet_process_tree_timeout.py --binary "candidates/dotnet-aot/out/${{ matrix.executable }}" --out "results/dotnet-timeout-${{ matrix.rid }}.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -72,4 +78,5 @@ jobs:
             results/dotnet-aot-${{ matrix.rid }}.json
             results/dotnet-scan-${{ matrix.rid }}.json
             results/dotnet-read-subset-${{ matrix.rid }}.json
+            results/dotnet-timeout-${{ matrix.rid }}.json
           if-no-files-found: ignore
