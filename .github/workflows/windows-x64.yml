@@ -101,7 +101,12 @@ jobs:
           try {
             $env:USERPROFILE = $fixture
             Write-Output "Controlled USERPROFILE=$env:USERPROFILE"
-            go test ./coding -run '^TestLoadSkillsPreservesDiscoveryOrder
+            go test ./coding -run TestLoadSkillsPreservesDiscoveryOrder -count=1 -v
+            exit $LASTEXITCODE
+          } finally {
+            $env:USERPROFILE = $original
+          }
+      - name: Pi Go native CLI build
         if: matrix.candidate == 'pi_go'
         shell: pwsh
         working-directory: vendor/pi_go
