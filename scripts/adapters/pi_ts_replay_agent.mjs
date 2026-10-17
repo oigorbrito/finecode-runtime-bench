@@ -27,9 +27,10 @@ for await(const line of createInterface({input:process.stdin,crlfDelay:Infinity}
    ["read",{path:filepath,offset:1,limit:2}],
    ["grep",{path:filepath,pattern:"return n * 2",literal:true}]
   ];
-  let idx=0,events=[], toolResults=0, promptSeen=false;
+  let idx=0,events=[], toolResults=0, promptSeen=false, modelContexts=[];
   const streamFn=(_model,context)=>{
    promptSeen ||= context.messages.some(m=>m.role==="system" && String(m.content).includes("Offline deterministic coding task."));
+   modelContexts.push({roles:context.messages.map(m=>m.role),system_prompt:context.messages.find(m=>m.role==="system")?.content??null});
    const stream=createAssistantMessageEventStream();
    queueMicrotask(()=>{
     const next=scripted[idx++];
@@ -48,7 +49,7 @@ for await(const line of createInterface({input:process.stdin,crlfDelay:Infinity}
   const final=fs.readFileSync(filepath,"utf8");
   report={ok:final==="def calculate(n):\n    return n * 2\n",elapsed_ms:elapsed,
    turns:idx,tool_results:toolResults,messages:agent.state.messages.length,message_roles:agent.state.messages.map(m=>m.role),
-   final_text:final,model_system_prompt_seen:promptSeen,events};
+   final_text:final,model_system_prompt_seen:promptSeen,model_contexts:modelContexts,events};
  }catch(e){report={error:String(e?.stack??e)}}
  process.stdout.write(JSON.stringify(report)+"\n");
 }
