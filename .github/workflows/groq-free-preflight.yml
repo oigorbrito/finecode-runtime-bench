@@ -1,0 +1,40 @@
+name: Groq Free one-call preflight
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fetch pinned benchmark script from experimental branch
+        env:
+          SCRIPT_SHA: b701b1c7fa7730aba2783c591ac339d619d2fa42
+        run: |
+          curl --fail --silent --show-error --location --retry 2 \
+            https://raw.githubusercontent.com/oigorbrito/finecode-runtime-bench/${SCRIPT_SHA}/scripts/groq_free_smoke.py \
+            -o groq_free_smoke.py
+          python -m py_compile groq_free_smoke.py
+      - name: Validate GitHub secret is available
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          if [ -z "$GROQ_API_KEY" ]; then
+            echo 'FAIL: GROQ_API_KEY missing'
+            exit 1
+          fi
+          echo 'PASS: GROQ_API_KEY available'
+      - name: Execute one real free-tier model request
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          python groq_free_smoke.py
+          test -s groq-usage-events.jsonl
+          python -c "import json; x=json.loads(open('groq-usage-events.jsonl').read()); assert x['provider_reported_total_tokens'] > 0; print('PASS: provider-reported token usage captured')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: groq-free-usage
+          path: groq-usage-events.jsonl
+          if-no-files-found: error
+          retention-days: 7
