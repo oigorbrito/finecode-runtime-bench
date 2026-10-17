@@ -58,15 +58,18 @@ if (args.Length == 1 && args[0] == "sandbox-probe")
             && line["CapEff:".Length..].Trim().TrimStart('0').Length == 0);
     }
     catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-    var result = new
+    using (var writer = new Utf8JsonWriter(Console.OpenStandardOutput()))
     {
-        kind = "docker_sandbox_negative_boundary_probe",
-        readonly_root_denied = readonlyDenied,
-        tmpfs_writable = tmpfsWritable,
-        external_tcp_denied = networkDenied,
-        effective_capabilities_zero = noEffectiveCaps
-    };
-    Console.WriteLine(JsonSerializer.Serialize(result));
+        writer.WriteStartObject();
+        writer.WriteString("kind", "docker_sandbox_negative_boundary_probe");
+        writer.WriteBoolean("readonly_root_denied", readonlyDenied);
+        writer.WriteBoolean("tmpfs_writable", tmpfsWritable);
+        writer.WriteBoolean("external_tcp_denied", networkDenied);
+        writer.WriteBoolean("effective_capabilities_zero", noEffectiveCaps);
+        writer.WriteEndObject();
+        writer.Flush();
+    }
+    Console.WriteLine();
     if (!readonlyDenied || !tmpfsWritable || !networkDenied || !noEffectiveCaps)
         Environment.ExitCode = 1;
     return;
