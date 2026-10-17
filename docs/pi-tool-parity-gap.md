@@ -98,3 +98,17 @@ The harness compares successful tool text output **byte-for-byte after UTF-8 dec
 Across all targets: **39 existing positive tests PASS + 12 fd-delegation comparisons PASS**, and **three intentionally observed native gitignore mismatches remain**. The delegated fd test includes an ignored `*.tmp` file inside an initialized Git repo, a git repository case without glob matches, and recursive basename glob fixtures. The positive comparisons are output-identical to the pinned Pi results, and the native mismatch is separately asserted rather than hidden or counted as compatible. Each runner uploads case-level `live-pi-grep-find-<rid>` JSON evidence.
 
 **Engineering decision:** a lightweight C# launcher can reuse the same optimized `fd` search backend as Pi on all three runner classes. This removes the *observed gitignore mismatch in the delegated branch only* while preserving the independent C# implementation as a known incomplete exploratory variant. It **does not** prove complete `find` semantics (all complex glob behaviors, nested ignore exceptions, symlinks, cancellation, result limits, streaming) or agent parity, and does not justify changing FineCode's TypeScript core. No automatic merge and no modification to main FineCode.
+
+## Resource-bounded fd delegation — follow-on gate (2026-10-17)
+
+The experimental `find-fd-subset` accepts an **optional result limit (1–1000)** and **child execution timeout (1–60000 ms)**, while keeping the Pi-aligned default limit of 1000. A delegated `fd` subprocess now drains stdout/stderr concurrently to avoid pipe deadlock; when the deadline expires the wrapper requests termination of its child process tree and returns error code 124. These are *wrapper-level resource controls*, not Pi's `AbortSignal` integration or isolation, and code presence does not independently validate the timeout branch.
+
+The same-run Pi comparison now includes:
+- `src/*.cs` path-containing glob, using the pinned Pi `find` tool on the same fixture
+- a single-match `limit=1` case with Pi's original continuation notice
+- an ignored `*.tmp` fixture with explicit `limit=1`
+- three separate fail-closed argument checks (limit 0, limit greater than 1000, and timeout 0) that are **not** counted as Pi parity
+
+The native `find-subset` .gitignore discrepancy is still a separately asserted known gap. The fd-delegated branch still requires an external executable and has no complete agent cancellation contract, sandboxing, deterministic memory budget, or guaranteed parity on every glob/ignore edge case. The timeout-and-kill branch itself requires a deterministic slow-child test before declaring `TIMEOUT_CANCEL=PASS`.
+
+Reproducible matrix workflow: `.github/workflows/pi-dotnet-grep-find-live.yml`; implementation `candidates/dotnet-aot/Program.cs`; head-to-head harness `scripts/compare_pi_grep_find_live.mjs`.
