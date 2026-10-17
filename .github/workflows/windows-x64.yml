@@ -88,24 +88,17 @@ jobs:
           go env GOPATH
           go test ./coding -run TestLoadSkillsPreservesDiscoveryOrder -count=1 -v
           exit $LASTEXITCODE
-      - name: Controlled Go HOME versus USERPROFILE test
+      - name: Controlled Go HOME versus USERPROFILE test using overlay
         if: matrix.candidate == 'pi_go'
         id: go_home_control
         continue-on-error: true
         shell: pwsh
         working-directory: vendor/pi_go
         run: |
-          $original = $env:USERPROFILE
-          $fixture = Join-Path $env:RUNNER_TEMP 'go-home-control'
-          New-Item -ItemType Directory -Force -Path $fixture | Out-Null
-          try {
-            $env:USERPROFILE = $fixture
-            Write-Output "Controlled USERPROFILE=$env:USERPROFILE"
-            go test ./coding -run TestLoadSkillsPreservesDiscoveryOrder -count=1 -v
-            exit $LASTEXITCODE
-          } finally {
-            $env:USERPROFILE = $original
-          }
+          python ../../scripts/go_windows_home_overlay.py --source coding/skills_frontmatter_test.go --out-dir ../../results/go-home-overlay
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go test -overlay ../../results/go-home-overlay/overlay.json ./coding -run TestLoadSkillsPreservesDiscoveryOrder -count=1 -v
+          exit $LASTEXITCODE
       - name: Pi Go native CLI build
         if: matrix.candidate == 'pi_go'
         shell: pwsh
