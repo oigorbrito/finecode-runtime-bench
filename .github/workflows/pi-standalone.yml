@@ -1,0 +1,43 @@
+name: Pi standalone (Bun)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/pi-standalone.yml'
+      - 'scripts/**'
+      - 'sources.json'
+permissions:
+  contents: read
+jobs:
+  bun-standalone:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+      - name: Checkout exact Pi source
+        run: python3 scripts/checkout.py pi_ts
+      - name: Build official standalone CLI
+        working-directory: vendor/pi_ts
+        run: |
+          npm install --ignore-scripts
+          npm run hydrate:model-data
+          npm run build:offline
+          npm --prefix packages/coding-agent run build:binary
+          test -x packages/coding-agent/dist/pi
+      - name: Measure standalone --version
+        run: python3 scripts/measure.py --name pi_ts_standalone --out results/pi_ts_standalone.json -- vendor/pi_ts/packages/coding-agent/dist/pi --version
+      - name: Publish benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-pi-standalone-${{ matrix.runner }}
+          path: results/*.json
+          if-no-files-found: ignore
