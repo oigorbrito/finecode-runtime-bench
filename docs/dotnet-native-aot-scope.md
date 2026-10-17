@@ -47,3 +47,11 @@ The CPU fields originate from GNU `/usr/bin/time` with limited decimal precision
 **Architectural decision:** This proves native C# **process feasibility** on all three targets, not a port of Pi. The feature parity and functional workflow gates remain **NOT RUN**; a Pi core replacement is **NOT AUTHORIZED** by these results.
 
 Artifacts: `dotnet-aot-linux-x64`, `dotnet-aot-linux-arm64`, `dotnet-aot-win-x64` from the referenced workflow.
+
+## First real operation: bounded read-only file scan (not Pi parity)
+
+The probe now accepts `scan-file <path> <literal>` and returns JSON with UTF-8 byte count, deterministic newline-based line count, non-overlapping ordinal substring occurrences, and SHA-256 of the original bytes. Malformed UTF-8, missing files, missing/empty literals, and unknown commands fail closed with a nonzero exit code.
+
+`scripts/verify_dotnet_scan_contract.py` provides a separately implemented Python oracle and checks deterministic empty, one-line, multiline, Unicode, overlapping literal, and approximately 200 KiB payload fixtures, plus three invalid-invocation cases. CI runs exactly the same contract suite on Windows x64, Linux x64, and Linux ARM64, saving a JSON case-level report per target. The C# source and Python oracle use different implementations of counting and hashing. No paid API calls.
+
+**Unproven:** Pi tool APIs, sandboxing/path authorization, model providers, TUI, network, patch/edit, session persistence, extension discovery and agent loop. File-reading the path requested by the invoking test is intentional and not an isolated tool executor. These contracts are a small deterministic functional building block, not comparable agent workloads. Passing them must not authorize migration of FineCode's upstream TypeScript core.
