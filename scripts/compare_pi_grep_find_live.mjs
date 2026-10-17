@@ -20,14 +20,26 @@ try{
  const file=path.join(dir,"single.txt");
  writeFileSync(file,"alpha\nTODO first\nmiddle\nTODO last\n");
  const grep=createGrepToolDefinition(dir);
- for(const [name,pattern] of [["positive","TODO"],["absent","NOTFOUND"],["case-sensitive","todo"],["single","alpha"]]){
-  const pi=await grep.execute("id",{path:file,pattern,literal:true});
-  check("grep",name,pi.structuredContent??pi.content.find(x=>x.type==="text")?.text,["grep-subset",file,pattern]);
+ for(const [name,pattern,literal,ignoreCase] of [
+  ["positive","TODO",true,false],
+  ["absent","NOTFOUND",true,false],
+  ["case-sensitive","todo",true,false],
+  ["single","alpha",true,false],
+  ["literal-ignore-case","todo",true,true],
+  ["regex-anchored","^TODO",false,false],
+  ["regex-class","TODO [a-z]+",false,false],
+  ["regex-alternation","TODO (first|last)",false,false]
+ ]){
+  const pi=await grep.execute("id",{path:file,pattern,literal,ignoreCase});
+  const argv=["grep-subset",file,pattern,literal?"literal":"regex"];
+  if(ignoreCase)argv.push("ignore-case");
+  check("grep",name,pi.structuredContent??pi.content.find(x=>x.type==="text")?.text,argv);
  }
  const root=path.join(dir,"find-root");
  mkdirSync(root);writeFileSync(path.join(root,"unique.xyz"),"data");writeFileSync(path.join(root,"another.txt"),"data");
+ const nested=path.join(root,"src");mkdirSync(nested);writeFileSync(path.join(nested,"only.cs"),"namespace Test {}");
  const find=createFindToolDefinition(dir);
- for(const [name,pattern] of [["specific","*.xyz"],["none","*.absent"],["text","*.txt"]]){
+ for(const [name,pattern] of [["specific","*.xyz"],["none","*.absent"],["text","*.txt"],["recursive-csharp","*.cs"],["recursive-no-hit","*.go"]]){
   const pi=await find.execute("id",{path:root,pattern});
   check("find",name,pi.structuredContent??pi.content.find(x=>x.type==="text")?.text,["find-subset",root,pattern]);
  }
