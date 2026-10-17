@@ -81,12 +81,33 @@ try{
    report.fdDelegation.push({name,pass:run.status===0 && upstream===observed,upstream,observed,code:run.status});
  }
 
+
+ // Additional head-to-head cases: path-containing glob and real fd limit notices.
+ for(const [name,scenarioRoot,pattern,limit] of [
+  ["glob-in-path",root,"src/*.cs",1000],
+  ["single-result-limit",root,"*.xyz",1],
+  ["ignored-with-explicit-limit",ignoredRoot,"*.tmp",1]
+ ]){
+  const tool=await find.execute("id",{path:scenarioRoot,pattern,limit});
+  const upstream=tool.structuredContent??tool.content.find(x=>x.type==="text")?.text;
+  const run=spawnSync(path.resolve(exe),["find-fd-subset",scenarioRoot,pattern,fdPath,String(limit)],{timeout:10000});
+  if(run.error)throw run.error;
+  const observed=run.stdout.toString("utf8");
+  report.fdDelegation.push({name,pass:run.status===0&&upstream===observed,upstream,observed,code:run.status});
+ }
+ // Safety checks are *not* Pi parity tests: enforce bounded resource args.
+ report.safety=[];
+ for(const [name,limit,timeout] of [["zero-limit","0","10000"],["over-max-limit","1001","10000"],["zero-timeout","1","0"]]){
+  const run=spawnSync(path.resolve(exe),["find-fd-subset",root,"*.xyz",fdPath,limit,timeout],{timeout:10000});
+  report.safety.push({name,pass:run.status===2,code:run.status,stderr:run.stderr.toString("utf8").trim()});
+ }
 }finally{rmSync(dir,{recursive:true,force:true});}
 const failures=[...report.grep,...report.find].filter(x=>!x.pass);
 report.grepPass=report.grep.filter(x=>x.pass).length;
 report.findPass=report.find.filter(x=>x.pass).length;
 report.fdDelegationPass=report.fdDelegation.filter(x=>x.pass).length;
-report.fail=failures.length+report.knownGaps.filter(x=>!x.expectedDivergence).length+report.fdDelegation.filter(x=>!x.pass).length;
+report.safetyPass=report.safety.filter(x=>x.pass).length;
+report.fail=failures.length+report.knownGaps.filter(x=>!x.expectedDivergence).length+report.fdDelegation.filter(x=>!x.pass).length+report.safety.filter(x=>!x.pass).length;
 writeFileSync(out,JSON.stringify(report,null,2)+"\n");
-console.log(JSON.stringify({grepPass:report.grepPass,findPass:report.findPass,fdDelegationPass:report.fdDelegationPass,fdDelegation:report.fdDelegation,knownGaps:report.knownGaps,failures},null,2));
+console.log(JSON.stringify({grepPass:report.grepPass,findPass:report.findPass,fdDelegationPass:report.fdDelegationPass,safetyPass:report.safetyPass,safety:report.safety,fdDelegation:report.fdDelegation,knownGaps:report.knownGaps,failures},null,2));
 if(report.fail)process.exitCode=1;
