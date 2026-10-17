@@ -51,6 +51,14 @@ jobs:
           python3 scripts/measure_resources.py --name pi_bun_help --out results/pi_bun_help.json -- vendor/pi_ts/packages/coding-agent/dist/pi --help
           python3 scripts/measure_resources.py --name pi_rust_help --out results/pi_rust_help.json -- vendor/pi_rust/target/release/rpi --help
           python3 scripts/measure_resources.py --name pi_go_help --out results/pi_go_help_resources.json -- vendor/pi_go/pi-bench --help
+      - name: Capture CLI behavior for parity audit
+        run: |
+          python3 scripts/capture_cli_contract.py --name pi_node --out results/help_node.json -- node vendor/pi_ts/packages/coding-agent/dist/cli.js --help
+          python3 scripts/capture_cli_contract.py --name pi_bun --out results/help_bun.json -- vendor/pi_ts/packages/coding-agent/dist/pi --help
+          python3 scripts/capture_cli_contract.py --name pi_rust --out results/help_rust.json -- vendor/pi_rust/target/release/rpi --help
+          python3 scripts/capture_cli_contract.py --name pi_go --out results/help_go.json -- vendor/pi_go/pi-bench --help
+      - name: Compare CLI output contracts
+        run: python3 scripts/analyze_cli_contract.py --inputs results/help_node.json results/help_bun.json results/help_rust.json results/help_go.json --out results/help_contract_audit.json
       - name: Artifact sizes and versions
         run: |
           python3 - <<'PY'
