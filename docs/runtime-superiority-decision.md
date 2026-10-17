@@ -150,3 +150,16 @@ A second run (same workflow) has been prepared to supply an identical explicit s
 **Decision:** `GO_TOOL_EXECUTION_LATENCY=LEADER` on this fixed scripted replay; `GO_DROP_IN_AGENT_HISTORY_PARITY=FAIL` on the pinned revision. Do **not** replace Pi TypeScript core or session format based on the speed result. A Go tool executor behind the unchanged Pi agent remains a separate architecture worth measuring end-to-end if/when its IPC cost and fidelity justify it.
 
 A further instrumented run records *individual message role sequences* in JSON to eliminate ambiguity about the extra message and distinguish history representation from tool-result count. Until that run completes, the confirmed discrepancy is the count and the source-based explanation; no unsupported claim of identical serialized history is made.
+
+## Transcript-role instrumented replay: confirmed cross-platform (2026-10-17)
+
+[GitHub Actions #39051326595](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39051326595) **2/2 PASS**, Linux x64 and Linux ARM64. The offline replay explicitly supplied and verified an identical system prompt at the model boundary, executed the actual agent loops plus four real built-in tools, tested final Python programs, and recorded **per-message roles** and events in artifacts `agent-replay-linux-x64` and `agent-replay-linux-arm64`. All **120/120 candidate-tasks** were correct; no scoring was based on unexecuted pseudocode.
+
+| Platform | Pi Node median ms | Pi Bun median ms | Go median ms | Message counts Node / Bun / Go |
+| --- | ---: | ---: | ---: | --- |
+| Linux x64 | 5.9521 | 4.1996 | **0.4025** | 11 / 11 / 10 |
+| Linux ARM64 | 7.8049 | 4.5845 | **0.4305** | 11 / 11 / 10 |
+
+**Verdict on strict agent history interchangeability:** `GO_AS_UNMODIFIED_PI_CORE_DROP_IN=FAIL` on these pinned revisions, because persistent agent transcripts differ in count, consistently with the pinned TypeScript agent prepending the system/tool declaration into `state.messages` and the Go Agent storing it separately in `state.SystemPrompt`. The exact role arrays are archived in JSON for each case; the logs summarize counts. **This does not imply that Go omitted the system prompt for model inference**—the stream boundary explicitly confirmed its presence. The difference affects raw-message consumers and session compatibility; it requires a documented normalization contract or a conforming implementation and regression suite before claiming drop-in parity.
+
+**Performance verdict remains narrower:** Go is fastest in this fixed, deterministic local agent-loop replay on both platforms; this is **not** evidence of lower token count or better performance on real model-generated work. A Go backend behind Pi's existing TypeScript agent remains possible, but must separately demonstrate savings net of IPC overhead and maintain tool permission semantics. Do not authorize TypeScript core replacement or merging PR #7 on this basis.
