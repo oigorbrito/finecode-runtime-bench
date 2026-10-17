@@ -28,3 +28,13 @@ CLI build/run success does not establish functional parity. Windows currently ha
 At pinned `pi_rust` SHA, `crates/rpi-cli/src/updates.rs:2643` asserts that the error message contains `real_file.display().to_string()`. The observed error for the linked-file fixture contains `C:\\Users\\runneradmin\\...\\real-file.exe`, whereas the fixture path uses `C:\\Users\\RUNNER~1\\...\\real-file.exe`. This is a Windows short-name (8.3) versus long-name string mismatch. Importantly the diagnostic states the leaf is **a link or junction**, therefore it is not evidence that the symlink leaf was accepted. The full official test gate still fails. No source modification or assertion removal is warranted in this benchmark.
 
 Do not mistake a green `continue-on-error` *step conclusion* for passing tests: read the explicit `steps.official_rust.outcome` and raw test logs.
+
+## Controlled diagnosis of Go user skill on Windows — confirmed
+
+Run [39001216399](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39001216399), Windows Go job:
+
+1. Unmodified official `go test ./...`: **FAIL**, with four known `coding` tests failing.
+2. Unmodified isolated `go test ./coding -run TestLoadSkillsPreservesDiscoveryOrder -count=1 -v`: **FAIL**, user skill not found.
+3. Diagnostic `go test -overlay ... ./coding -run TestLoadSkillsPreservesDiscoveryOrder -count=1 -v`, virtual fixture copy containing `t.Setenv("USERPROFILE", home)` immediately after `t.Setenv("HOME", home)`: **PASS**.
+
+This controlled A/B supports a Windows-specific test fixture environment mismatch, not a fix to the Go port, and resolves **only the diagnostic hypothesis**. The upstream test gate intentionally stays FAIL. TypeScript official scripts still fail `spawnSync npm ENOENT`. Rust official `rpi-cli` suite again fails its path-alias assertion (503 passed, 1 failed, 2 ignored), while native builds and help checks pass. No source files of the candidate repositories are edited.
