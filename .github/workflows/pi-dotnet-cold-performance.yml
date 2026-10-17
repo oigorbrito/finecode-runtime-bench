@@ -1,0 +1,67 @@
+name: Paired Pi versus AOT cold tool performance
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/pi-dotnet-cold-performance.yml'
+      - 'scripts/pi_cold_tool.mjs'
+      - 'scripts/compare_pi_aot_cold_performance.py'
+      - 'candidates/dotnet-aot/**'
+      - 'sources.json'
+permissions:
+  contents: read
+jobs:
+  paired-cold-tools:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, rid: linux-x64, exe: Probe }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64, exe: Probe }
+          - { os: windows-2025, rid: win-x64, exe: Probe.exe }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Checkout pinned Pi
+        shell: pwsh
+        run: |
+          python scripts/checkout.py pi_ts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build original Pi
+        working-directory: vendor/pi_ts
+        shell: pwsh
+        run: |
+          npm install --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run hydrate:model-data
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build:offline
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build Native AOT
+        shell: pwsh
+        run: |
+          dotnet publish candidates/dotnet-aot/Probe.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishAot=true -o candidates/dotnet-aot/out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install measurement dependency
+        shell: pwsh
+        run: |
+          python -m pip install psutil==7.1.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Paired randomized same-run cold operations
+        shell: pwsh
+        run: |
+          python scripts/compare_pi_aot_cold_performance.py --binary "candidates/dotnet-aot/out/${{ matrix.exe }}" --pairs 30 --out "results/pi-aot-cold-${{ matrix.rid }}.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pi-aot-cold-${{ matrix.rid }}
+          path: results/pi-aot-cold-${{ matrix.rid }}.json
+          if-no-files-found: ignore
