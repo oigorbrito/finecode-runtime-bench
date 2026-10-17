@@ -41,12 +41,14 @@ with tempfile.TemporaryDirectory() as directory:
             expected = "\n".join(lines[start:end]) if not invalid else None
             if not invalid and limit is not None and end < len(lines):
                 expected += f"\n\n[{len(lines)-end} more lines in file. Use offset={end+1} to continue.]"
-            result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=15)
+            result = subprocess.run(command, capture_output=True, timeout=15)
+            stdout = result.stdout.decode("utf-8")
+            stderr = result.stderr.decode("utf-8")
             if invalid:
-                if result.returncode != 2 or f"Offset {offset} is beyond end of file" not in result.stderr:
+                if result.returncode != 2 or f"Offset {offset} is beyond end of file" not in stderr:
                     raise AssertionError(f"{name}, offset={offset}: expected upstream bounds error; got {result.returncode}, {result.stderr!r}")
-            elif result.returncode != 0 or result.stdout != expected:
-                raise AssertionError(f"{name}, offset={offset}, limit={limit}: expected={expected!r} got={result.stdout!r} exit={result.returncode} err={result.stderr!r}")
+            elif result.returncode != 0 or stdout != expected:
+                raise AssertionError(f"{name}, offset={offset}, limit={limit}: expected={expected!r} got={stdout!r} exit={result.returncode} err={stderr!r}")
             reports.append({"fixture": name, "offset": offset, "limit": limit, "result": "PASS"})
     missing = subprocess.run([binary, "read-subset", str(Path(directory, "not-there.txt"))], capture_output=True, text=True, timeout=15)
     if missing.returncode != 2:
