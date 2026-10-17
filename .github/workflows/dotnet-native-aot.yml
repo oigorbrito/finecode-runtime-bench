@@ -1,0 +1,34 @@
+name: .NET Native AOT isolated process baseline
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/dotnet-native-aot.yml'
+      - 'candidates/dotnet-aot/**'
+      - 'scripts/measure_dotnet_aot.py'
+permissions:
+  contents: read
+jobs:
+  dotnet-aot-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build Native AOT
+        run: dotnet publish candidates/dotnet-aot/Probe.csproj -c Release -r linux-x64 --self-contained true -p:PublishAot=true -o candidates/dotnet-aot/out
+      - name: Verify ELF and absence of .NET host requirement
+        run: |
+          file candidates/dotnet-aot/out/Probe
+          candidates/dotnet-aot/out/Probe --help
+          candidates/dotnet-aot/out/Probe --version
+      - name: Measure cold CLI help, CPU and peak RSS
+        run: python3 scripts/measure_dotnet_aot.py --binary candidates/dotnet-aot/out/Probe --out results/dotnet-aot-linux-x64.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dotnet-aot-linux-x64
+          path: results/dotnet-aot-linux-x64.json
+          if-no-files-found: ignore
