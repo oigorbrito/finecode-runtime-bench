@@ -25,3 +25,11 @@ Do not rank or replace Pi/FineCode on scan-file timings. Next functional progres
 ## Audited CI result — PASS
 
 [GitHub Actions run #39007208435](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39007208435), pinned commit `8efd314fa3d3232ce197d8d7a6a5660530b9d83e`, returned `{"result":"PASS","tools":["read","grep","find"],"parameter_count":13}`. All 13 schema parameters are detected, and the run uploads `pinned-pi-tool-contract-inventory` as a downloadable JSON evidence artifact. The initial source-schema matcher was **incorrect** for nested `Type.Optional(Type.Number(...))`; it caused a deliberate red CI gate and was repaired in `403f6d9` before this passing run. This is a source-schema **inventory only**: C# has **not** passed Pi's runtime behavior contracts.
+
+## Bounded text-read behavioral gate — PASS
+
+[Windows x64, Linux x64 and ARM64 run #39007871232](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39007871232): all **3/3 Native AOT jobs PASS**, including **19 independently expected text read subset cases per target**, 57 passes, zero failures. A separate Python oracle validates empty files, terminal newline, CRLF, UTF-8, negative/zero/one-indexed offsets, out-of-bounds, optional line limits, continuation notices and missing-file failures.
+
+The implementation is explicitly exposed as `read-subset`, **not** `read`: it mirrors a **bounded subset** of the immutable Pi `read.ts` logic at lines 156–204, for small text without truncation. The first CI invocation failed because the Python subprocess text decoder normalized CRLF; the oracle was corrected to capture raw bytes and then UTF-8 decode, preserving literal newline sequences. This was **a harness defect**, not proof of C# failure.
+
+Remaining not implemented: exact agent-tool parameter/envelope contract, full truncation messages, images, line/byte limits under oversized input, path resolution, stream/cancel behavior and tool integration. The upstream Pi tool was **not executed head-to-head in this gate**; Python independently encodes the reviewed expected text behavior. Thus `BOUNDED_TEXT_READ=PASS`, `FULL_PI_READ_PARITY=NOT_PROVEN`, `PI_GREP_PARITY=NOT_RUN`, `PI_FIND_PARITY=NOT_RUN` and `AGENT_PARITY=NOT_RUN`. This cannot justify FineCode core migration.
