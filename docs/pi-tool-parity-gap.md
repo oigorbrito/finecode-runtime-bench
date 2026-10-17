@@ -118,3 +118,20 @@ Reproducible matrix workflow: `.github/workflows/pi-dotnet-grep-find-live.yml`; 
 [Run #39042649278](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39042649278) completed **3/3 jobs PASS**: Windows x64, Linux x64, Linux ARM64. On **each** runner the tested cases were: 8/8 existing single-file grep, 5/5 native recursive find, **7/7 fd-delegated find** (including three new path-glob/explicit-limit cases), and **3/3 separate argument-safety assertions**. Totals: **60 successful Pi-versus-C# positive comparisons** (20 per runner), **9 successful guard checks** (3 per runner), plus the **three independently observed native .gitignore known divergences** (not counted as parity). No unexpected mismatch. Three case-level JSON artifacts are published in the workflow.
 
 The timeout branch is **implemented but not directly exercised by a deterministic slow-child fixture**; consequently cancellation/timeout semantics and actual resource-use budgets remain **NOT VERIFIED**. The guard checks verify rejection of invalid resource arguments, not runtime termination, full isolation, or memory limits. This is a probe/harness result and must not drive a FineCode core replacement.
+
+## Verified real deadline and descendant termination (2026-10-17)
+
+[GitHub Actions run #39043180329](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39043180329) **PASS: 3/3 matrix jobs** (Linux x64, Linux ARM64, Windows x64). The C# Native AOT `BoundedChild.Run` helper is used by the delegated `find-fd-subset` and directly by a purpose-built `process-tree-probe` test. Each platform's executable launched a process parent that launched a grandchild, and both wrote startup markers. An actual 1,500 ms deadline expired before the processes' 3,500 ms scheduled survival writes. The helper killed the process tree; the wrapper returned exit code **124**. The Python verifier subsequently waited another four seconds and confirmed **no parent or grandchild survival sentinel**.
+
+| Observation | Linux x64 | Linux ARM64 | Windows x64 |
+| --- | --- | --- | --- |
+| Parent started | YES | YES | YES |
+| Grandchild started | YES | YES | YES |
+| Deadline exit code 124 | PASS | PASS | PASS |
+| Parent survival sentinel absent | PASS | PASS | PASS |
+| Grandchild survival sentinel absent | PASS | PASS | PASS |
+| Complete matrix job | PASS | PASS | PASS |
+
+Source: `candidates/dotnet-aot/BoundedChild.cs`; deterministic child/grandchild fixture in `Program.cs`; verifier `scripts/verify_dotnet_process_tree_timeout.py`. Three downloadable `dotnet-aot-<rid>` artifacts carry `results/dotnet-timeout-<rid>.json`.
+
+**Scope:** This verifies timeout-triggered termination and absence of surviving sentinel writes in a controlled test **on all three runners**, not a hard OS sandbox. The subprocess wrapper has no Windows Job Object enforcement, Linux namespaces/cgroups, memory quota, disk quota, network isolation, or agent-aware cancellation token. It also is not evidence that an adversarial escaped descendant could never survive. The original pinned Pi `find` was not involved in this safety-only gate, and these checks are **not Pi functional parity**. FineCode main remained unchanged; no automatic merges.
