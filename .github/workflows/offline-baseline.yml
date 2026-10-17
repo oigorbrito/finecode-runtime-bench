@@ -49,6 +49,7 @@ jobs:
         working-directory: vendor/pi_python
         run: |
           uv sync --all-packages
+          python3 ../../scripts/python_source_integrity.py --source . --out ../../results/pi_python_integrity.json
           uv run --all-packages pytest -q
       - name: Pi TypeScript CLI startup
         if: matrix.candidate == 'pi_ts'
