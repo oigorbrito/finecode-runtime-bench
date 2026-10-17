@@ -25,7 +25,7 @@ for name in names:
         raise SystemExit(f"FAIL schema not found: {path}")
     parameters = {}
     for key, phrase in required[name].items():
-        match = re.search(r"\b" + re.escape(key) + r":\s*Type\.(?:Optional\(\s*)?(?:String|Boolean|Number)\(", schema.group(1))
+        match = re.search(r"\b" + re.escape(key) + r":\s*(?:Type\.Optional\(\s*)?Type\.(?:String|Boolean|Number)\(", schema.group(1))
         if not match or phrase not in schema.group(1):
             raise SystemExit(f"FAIL pinned parameter {name}.{key} changed or missing")
         parameters[key] = {"declared": True, "optional": bool(re.search(r"\b" + re.escape(key) + r":\s*Type\.Optional", schema.group(1)))}
