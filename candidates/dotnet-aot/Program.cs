@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 if (args.Length == 1 && args[0] == "--help")
 {
@@ -128,6 +129,96 @@ if (args.Length == 3 && args[0] == "find-subset")
     catch (Exception e) when (e is IOException or UnauthorizedAccessException)
     {
         Console.Error.WriteLine("find-subset failed: " + e.GetType().Name);
+        Environment.ExitCode = 2;
+        return;
+    }
+}
+
+
+// Delegate-only compatibility experiment: share Pi's fd engine. Native AOT does
+// not subsume fd: the caller must explicitly supply its resolved executable.
+if (args.Length == 4 && args[0] == "find-fd-subset")
+{
+    string root = Path.GetFullPath(args[1]);
+    string pattern = args[2];
+    string fdPath = args[3];
+    if (!Directory.Exists(root) || pattern.Length == 0 || fdPath.Length == 0)
+    {
+        Console.Error.WriteLine("find-fd-subset: invalid directory, pattern or fd");
+        Environment.ExitCode = 2;
+        return;
+    }
+    try
+    {
+        var start = new ProcessStartInfo(fdPath)
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        start.ArgumentList.Add("--glob");
+        start.ArgumentList.Add("--color=never");
+        start.ArgumentList.Add("--hidden");
+        bool inGitRepo = false;
+        for (string? current = root; current is not null; current = Directory.GetParent(current)?.FullName)
+        {
+            if (Directory.Exists(Path.Combine(current, ".git")) ||
+                File.Exists(Path.Combine(current, ".git")))
+            {
+                inGitRepo = true;
+                break;
+            }
+        }
+        if (!inGitRepo) start.ArgumentList.Add("--no-require-git");
+        start.ArgumentList.Add("--max-results");
+        start.ArgumentList.Add("1000");
+        if (pattern.Contains('/'))
+        {
+            start.ArgumentList.Add("--full-path");
+            if (!pattern.StartsWith('/') && !pattern.StartsWith("**/") && pattern != "**")
+                pattern = "**/" + pattern;
+            if (OperatingSystem.IsWindows()) pattern = pattern.Replace("/", @"[/\\]");
+        }
+        start.ArgumentList.Add("--");
+        start.ArgumentList.Add(pattern);
+        start.ArgumentList.Add(root);
+        using var process = Process.Start(start) ?? throw new IOException("Unable to start fd");
+        string stdout = process.StandardOutput.ReadToEnd();
+        string stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0 && stdout.Length == 0)
+        {
+            Console.Error.WriteLine("fd failed: " + stderr.Trim());
+            Environment.ExitCode = 2;
+            return;
+        }
+        var results = new System.Collections.Generic.List<string>();
+        foreach (string raw in stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string candidate = raw.TrimEnd('\r').Trim();
+            if (candidate.Length == 0) continue;
+            bool directorySuffix = candidate.EndsWith('/') || candidate.EndsWith('\\');
+            string relative = Path.IsPathRooted(candidate) ? Path.GetRelativePath(root, candidate) : candidate;
+            relative = relative.Replace('\\', '/');
+            if (directorySuffix && !relative.EndsWith('/')) relative += "/";
+            results.Add(relative);
+        }
+        if (results.Count == 0)
+        {
+            Console.Write("No files found matching pattern");
+        }
+        else
+        {
+            Console.Write(string.Join("\n", results));
+            if (results.Count >= 1000)
+                Console.Write("\n\n[1000 results limit reached. Use limit=2000 for more, or refine pattern]");
+        }
+        return;
+    }
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException
+        or System.ComponentModel.Win32Exception)
+    {
+        Console.Error.WriteLine("find-fd-subset failed: " + e.GetType().Name);
         Environment.ExitCode = 2;
         return;
     }
