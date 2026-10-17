@@ -14,6 +14,58 @@ if (args.Length == 1 && args[0] == "--version")
     Console.WriteLine("0.2.0-probe");
     return;
 }
+// Bounded Pi read-text subset: text-only, below upstream truncation thresholds.
+if (args.Length >= 2 && args.Length <= 4 && args[0] == "read-subset")
+{
+    if (args.Length >= 3 && !int.TryParse(args[2], out _))
+    {
+        Console.Error.WriteLine("Invalid offset");
+        Environment.ExitCode = 2;
+        return;
+    }
+    if (args.Length == 4 && (!int.TryParse(args[3], out int parsedLimit) || parsedLimit < 0))
+    {
+        Console.Error.WriteLine("Invalid limit");
+        Environment.ExitCode = 2;
+        return;
+    }
+    int offset = args.Length >= 3 ? int.Parse(args[2]) : 1;
+    int? limit = args.Length == 4 ? int.Parse(args[3]) : null;
+    try
+    {
+        string text = File.ReadAllText(args[1], Encoding.UTF8);
+        string[] allLines = text.Split('\n');
+        int startLine = offset == 0 ? 0 : Math.Max(0, offset - 1);
+        if (startLine >= allLines.Length)
+        {
+            Console.Error.WriteLine($"Offset {offset} is beyond end of file ({allLines.Length} lines total)");
+            Environment.ExitCode = 2;
+            return;
+        }
+        int endLine = limit.HasValue ? (int)Math.Min((long)startLine + limit.Value, allLines.Length) : allLines.Length;
+        string selected = string.Join("\n", allLines[startLine..endLine]);
+        if (Encoding.UTF8.GetByteCount(selected) > 32 * 1024 || endLine - startLine > 2000)
+        {
+            Console.Error.WriteLine("Outside bounded read-subset: upstream truncation semantics are not implemented");
+            Environment.ExitCode = 3;
+            return;
+        }
+        if (limit.HasValue && endLine < allLines.Length)
+        {
+            int remaining = allLines.Length - endLine;
+            selected += $"\n\n[{remaining} more lines in file. Use offset={endLine + 1} to continue.]";
+        }
+        Console.Write(selected);
+        return;
+    }
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine("read-subset failed: " + e.GetType().Name);
+        Environment.ExitCode = 2;
+        return;
+    }
+}
+
 if (args.Length == 3 && args[0] == "scan-file")
 {
     if (args[2].Length == 0)
