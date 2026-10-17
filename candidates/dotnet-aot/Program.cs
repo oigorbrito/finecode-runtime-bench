@@ -51,6 +51,7 @@ if (args.Length == 3 && args[0] == "process-tree-probe")
 }
 if (args.Length == 2 && args[0] == "process-tree-parent")
 {
+    File.WriteAllText(Path.Combine(args[1], "parent-started.txt"), "PARENT_STARTED");
     string self = Environment.ProcessPath ?? throw new IOException("Missing executable path");
     var grandchild = new ProcessStartInfo(self) { UseShellExecute = false };
     grandchild.ArgumentList.Add("process-tree-grandchild");
@@ -63,6 +64,7 @@ if (args.Length == 2 && args[0] == "process-tree-parent")
 }
 if (args.Length == 2 && args[0] == "process-tree-grandchild")
 {
+    File.WriteAllText(Path.Combine(args[1], "grandchild-started.txt"), "GRANDCHILD_STARTED");
     await Task.Delay(3500);
     File.WriteAllText(Path.Combine(args[1], "grandchild-survived.txt"), "GRANDCHILD_SURVIVED");
     return;
