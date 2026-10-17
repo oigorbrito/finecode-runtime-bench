@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as temp:
     if not contexts or len(contexts)!=5 or len(baseline_contexts)!=5:
      raise AssertionError(f"ELIMINATION_GATE missing model contexts round={idx} candidate={candidate}: {contexts}")
     for turn,(base,other) in enumerate(zip(baseline_contexts,contexts)):
-     if base["roles"]!=other["roles"] or base["system_prompt"]!=other["system_prompt"]:
+     if base["roles"]!=other["roles"] or base["system_prompt"]!=other["system_prompt"] or base["user_prompt"]!=other["user_prompt"]:
       raise AssertionError(f"ELIMINATION_GATE model-facing context differs round={idx} turn={turn} candidate={candidate} node={base} candidate_context={other}")
    baseline_roles=results["node"]["message_roles"]
    for candidate in ("bun","go"):
