@@ -10,25 +10,30 @@ permissions:
   contents: read
 jobs:
   windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        candidate: [pi_ts, pi_rust, pi_go]
     runs-on: windows-2025
-    timeout-minutes: 70
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
+        if: matrix.candidate == 'pi_ts'
         with:
           node-version: '24'
       - uses: dtolnay/rust-toolchain@stable
-      - name: Checkout pinned Pi, Rust and Go
+        if: matrix.candidate == 'pi_rust'
+      - name: Checkout pinned candidate
         shell: pwsh
-        run: |
-          python scripts/checkout.py pi_ts
-          python scripts/checkout.py pi_rust
-          python scripts/checkout.py pi_go
+        run: python scripts/checkout.py ${{ matrix.candidate }}
       - uses: actions/setup-go@v5
+        if: matrix.candidate == 'pi_go'
         with:
           go-version-file: vendor/pi_go/go.mod
           cache: false
-      - name: Pi TypeScript official offline build and script tests
+      - name: Pi TypeScript official offline build
+        if: matrix.candidate == 'pi_ts'
         shell: pwsh
         working-directory: vendor/pi_ts
         run: |
@@ -38,23 +43,29 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build:offline
           exit $LASTEXITCODE
-      - name: Pi TypeScript official script tests (Windows upstream npm spawn)
-        id: pi_scripts
-        continue-on-error: true
+      - name: Pi TypeScript official scripts (upstream gate)
+        if: matrix.candidate == 'pi_ts'
         shell: pwsh
         working-directory: vendor/pi_ts
         run: |
           npm run test:scripts
           exit $LASTEXITCODE
-      - name: Pi Rust official tests and build
+      - name: Pi Rust official tests
+        if: matrix.candidate == 'pi_rust'
         shell: pwsh
         working-directory: vendor/pi_rust
         run: |
           cargo test --workspace --locked
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          exit $LASTEXITCODE
+      - name: Pi Rust release build
+        if: matrix.candidate == 'pi_rust'
+        shell: pwsh
+        working-directory: vendor/pi_rust
+        run: |
           cargo build --release --locked -p rpi-cli
           exit $LASTEXITCODE
       - name: Pi Go official tests and build
+        if: matrix.candidate == 'pi_go'
         shell: pwsh
         working-directory: vendor/pi_go
         run: |
@@ -62,27 +73,22 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           go build -o pi-bench.exe ./cmd/pi
           exit $LASTEXITCODE
-      - name: Record Windows CLI contracts
+      - name: Capture CLI contract
+        if: success()
         shell: pwsh
         run: |
-          python scripts/capture_cli_contract.py --name pi_node_windows --out results/help_node_windows.json -- node vendor/pi_ts/packages/coding-agent/dist/cli.js --help
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python scripts/capture_cli_contract.py --name pi_rust_windows --out results/help_rust_windows.json -- vendor/pi_rust/target/release/rpi.exe --help
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python scripts/capture_cli_contract.py --name pi_go_windows --out results/help_go_windows.json -- vendor/pi_go/pi-bench.exe --help
+          if ('${{ matrix.candidate }}' -eq 'pi_ts') {
+            python scripts/capture_cli_contract.py --name pi_node_windows --out results/help_node_windows.json -- node vendor/pi_ts/packages/coding-agent/dist/cli.js --help
+          } elseif ('${{ matrix.candidate }}' -eq 'pi_rust') {
+            python scripts/capture_cli_contract.py --name pi_rust_windows --out results/help_rust_windows.json -- vendor/pi_rust/target/release/rpi.exe --help
+          } else {
+            python scripts/capture_cli_contract.py --name pi_go_windows --out results/help_go_windows.json -- vendor/pi_go/pi-bench.exe --help
+          }
           exit $LASTEXITCODE
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-x64-compatibility
+          name: windows-${{ matrix.candidate }}-x64
           path: results/*.json
           if-no-files-found: ignore
-      - name: Preserve upstream script-test failure as failing gate
-        if: always()
-        shell: pwsh
-        run: |
-          if ("${{ steps.pi_scripts.outcome }}" -eq "failure") {
-            Write-Error "Pi upstream script suite failed; other compatibility results remain separately visible."
-            exit 1
-          }
