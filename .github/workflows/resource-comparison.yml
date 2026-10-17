@@ -1,0 +1,79 @@
+name: Same-host CLI resource comparison
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/resource-comparison.yml'
+      - 'scripts/measure_resources.py'
+      - 'sources.json'
+permissions:
+  contents: read
+jobs:
+  resources:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout pinned sources
+        run: |
+          python3 scripts/checkout.py pi_ts
+          python3 scripts/checkout.py pi_rust
+          python3 scripts/checkout.py pi_go
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vendor/pi_go/go.mod
+          cache: false
+      - name: Build official Pi binary and Node CLI
+        working-directory: vendor/pi_ts
+        run: |
+          npm install --ignore-scripts
+          npm run hydrate:model-data
+          npm run build:offline
+          npm --prefix packages/coding-agent run build:binary
+      - name: Build Rust and Go CLIs
+        run: |
+          cd vendor/pi_rust
+          cargo build --release --locked -p rpi-cli
+          cd ../pi_go
+          go build -o pi-bench ./cmd/pi
+      - name: Measure same CLI help request
+        run: |
+          python3 scripts/measure_resources.py --name pi_node_help --out results/pi_node_help.json -- node vendor/pi_ts/packages/coding-agent/dist/cli.js --help
+          python3 scripts/measure_resources.py --name pi_bun_help --out results/pi_bun_help.json -- vendor/pi_ts/packages/coding-agent/dist/pi --help
+          python3 scripts/measure_resources.py --name pi_rust_help --out results/pi_rust_help.json -- vendor/pi_rust/target/release/rpi --help
+          python3 scripts/measure_resources.py --name pi_go_help --out results/pi_go_help_resources.json -- vendor/pi_go/pi-bench --help
+      - name: Artifact sizes and versions
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, platform
+          binaries = {
+            'bun': 'vendor/pi_ts/packages/coding-agent/dist/pi',
+            'rust': 'vendor/pi_rust/target/release/rpi',
+            'go': 'vendor/pi_go/pi-bench',
+          }
+          pathlib.Path('results').mkdir(exist_ok=True)
+          pathlib.Path('results/binary_sizes.json').write_text(json.dumps({
+            'arch': platform.machine(),
+            'bytes': {k: pathlib.Path(v).stat().st_size for k, v in binaries.items()}
+          }, indent=2) + '\n')
+          PY
+          node --version
+          bun --version
+          rustc --version
+          go version
+      - name: Upload raw samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resources-${{ matrix.runner }}
+          path: results/*.json
+          if-no-files-found: ignore
