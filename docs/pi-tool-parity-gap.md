@@ -48,3 +48,9 @@ Remaining not implemented: exact agent-tool parameter/envelope contract, full tr
 Artifacts `live-pi-read-linux-x64`, `live-pi-read-linux-arm64` and `live-pi-read-win-x64` contain case-level raw output and status. Tests exercise empty, one-line, limited, zero/negative/invalid offsets, trailing newline, CRLF, UTF-8, and zero line limit. No paid model/API calls; no changes to either upstream source tree or production FineCode.
 
 **Decision:** `PINNED_PI_VS_DOTNET_SMALL_TEXT_READ_OUTPUT=PASS` for exactly the tested cases. This is the **first true head-to-head Pi tool execution** in this experiment. It still does **not** prove the full `read` contract: truncation beyond thresholds, images, path expansion, cancellation, virtual operations, tool-result envelope and agent-loop integration remain untested or unimplemented. Similarly `grep` and `find` parity remain not implemented. No core migration recommendation.
+
+## Grep → find direct gate (evaluation scope)
+
+The new `scripts/compare_pi_grep_find_live.mjs` explicitly executes **grep first, find second**, using the pinned upstream Pi implementations (`createGrepToolDefinition` and `createFindToolDefinition`) and the Native AOT probe on the same runner. The bounded C# `grep-subset` currently handles a **single file, literal case-sensitive searches, no context, no regex or limit**. The `find-subset` currently handles **immediate files in one directory, basename glob, no gitignore processing or recursive traversal**. Fixtures intentionally avoid multiple matching files for find, so ordering claims are not implied. Comparison uses exact outputs and fails CI on any mismatch.
+
+These are *experimental narrow subsets*. Success must never be reported as complete Pi `grep`/`find` parity, since default Pi tools implement `rg`/`fd` search, gitignore semantics, path globs, context, limits, cancellation, and more. Native AOT file traversal is **not a secure isolated filesystem executor**.
