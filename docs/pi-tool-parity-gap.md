@@ -54,3 +54,15 @@ Artifacts `live-pi-read-linux-x64`, `live-pi-read-linux-arm64` and `live-pi-read
 The new `scripts/compare_pi_grep_find_live.mjs` explicitly executes **grep first, find second**, using the pinned upstream Pi implementations (`createGrepToolDefinition` and `createFindToolDefinition`) and the Native AOT probe on the same runner. The bounded C# `grep-subset` currently handles a **single file, literal case-sensitive searches, no context, no regex or limit**. The `find-subset` currently handles **immediate files in one directory, basename glob, no gitignore processing or recursive traversal**. Fixtures intentionally avoid multiple matching files for find, so ordering claims are not implied. Comparison uses exact outputs and fails CI on any mismatch.
 
 These are *experimental narrow subsets*. Success must never be reported as complete Pi `grep`/`find` parity, since default Pi tools implement `rg`/`fd` search, gitignore semantics, path globs, context, limits, cancellation, and more. Native AOT file traversal is **not a secure isolated filesystem executor**.
+
+## Direct pinned Pi grep → find comparison — PASS
+
+[GitHub Actions run #39008597458](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39008597458) completed **3/3 matrix jobs PASS** on Linux x64, Linux ARM64 and Windows x64. Each job built the exact pinned Pi TypeScript tools and .NET 9 Native AOT independently, then invoked the **actual Pi `grep` tool before the actual Pi `find` tool** with the same fixtures as the bounded C# counterparts.
+
+| Tool / narrow feature | Linux x64 | Linux ARM64 | Windows x64 | Total |
+| --- | ---: | ---: | ---: | ---: |
+| `grep`: single-file case-sensitive literal searches, match/nonmatch | 4/4 | 4/4 | 4/4 | 12/12 |
+| `find`: top-level basename glob, single-match/nonmatch fixtures | 3/3 | 3/3 | 3/3 | 9/9 |
+| **Total** | **7/7** | **7/7** | **7/7** | **21/21** |
+
+The harness compares successful tool text output **byte-for-byte after UTF-8 decoding**, and stores case-level expected and observed output, exit code and status in artifacts `live-pi-grep-find-linux-x64`, `live-pi-grep-find-linux-arm64`, and `live-pi-grep-find-win-x64`. This is a deliberately bounded direct comparison, **not complete Pi tool compatibility**. The C# implementation currently lacks regex, recursive traversal, gitignore behavior, glob path semantics, context, cancellation, output truncation, large files and extension integration. No claim of equivalent agent loops or lower total agent cost follows. FineCode main and the pinned Pi source have not been changed.
