@@ -88,3 +88,22 @@ The first two CI attempts failed while resolving **test-adapter Cargo dependenci
 | Zig | No pinned comparable implementation | INELIGIBLE pending runnable candidate |
 
 **No new FineCode core migration authorized.** A performance win in warm tool microtasks is not an agent-level superiority verdict. Proven eliminations are version-specific and based on material functionality readiness; do not interpret them as universal language rankings.
+
+## Three-way real pinned tool benchmark — Node, Bun, Go (2026-10-17)
+
+[GitHub Actions #39048225310](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39048225310): **2/2 jobs PASS**, Linux x64 and Linux ARM64. Each run kept three processes warm: original Pi TypeScript code loaded by Node 24.21.0, the **same original Pi source code** loaded by Bun 1.4.3, and the pinned Go port's actual exported tools. Each executed 90 randomized triplets of `read`/`grep` under the same runner; **180/180 equal tool text outputs** across the two runners. Per-platform JSON artifacts record raw samples, timings, runtimes and exact fixture protocol.
+
+| Target | Tool | Node median ms | Bun median ms | Go median ms | Go speedup over Node |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Linux x64 | read | 0.48778 | 0.35992 | **0.08534** | 5.7× |
+| Linux x64 | grep | 3.50604 | 2.18606 | **0.09743** | 36.0× |
+| Linux ARM64 | read | 0.55990 | 0.41606 | **0.10701** | 5.2× |
+| Linux ARM64 | grep | 3.80603 | 1.85653 | **0.11970** | 31.8× |
+
+**Elimination scoped to warm `read`/`grep` microtasks:** original Pi/Node is slower than Bun and the Go port; Go is fastest in all four comparisons. Bun's warmed Pi `grep` (still using its original code) improves relative to Node without reimplementation. Do not extrapolate to coding agent performance, model tokens, tool success under corner cases, RSS, CPU, multi-file search or entire tasks. Go `grep` is a different in-process algorithm; Pi uses ripgrep. Measure their fidelity beyond the deliberately small fixtures before declaring replacement.
+
+### More meaningful follow-on gate: deterministic code repair task
+
+Workflow `.github/workflows/pi-node-bun-go-coding-task.yml` and harness `scripts/compare_pi_node_bun_go_coding_task.py` execute a real **four-tool coding chain** `write → edit → read → grep` in separately isolated temporary directories for Node, Bun and Go. The task starts with broken Python code (`return n + 1`) and edits it to `return n * 2`; a separately invoked Python oracle asserts correct behavior on six values including negative numbers. 24 randomized rounds per target, identical final source bytes, and identical read/grep text outputs are required, and no model or API call is used. Tool-chain time is measured separately from oracle invocation. Failures gate the workflow rather than being silently discarded. This is still a deterministic *tool-chain* test, not an autonomous LLM agent programming task.
+
+**Decision**: Results from true end-to-end agent loops (same replayed LLM outputs or identical model/provider responses, tokens and task corpus, equivalent capabilities and feature flags, memory including child processes) must precede any TypeScript core migration.
