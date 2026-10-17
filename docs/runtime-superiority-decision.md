@@ -135,3 +135,18 @@ Artifacts: `pi-node-bun-go-coding-linux-x64` and `pi-node-bun-go-coding-linux-ar
 **Important parity issue:** TypeScript/Node and TypeScript/Bun recorded **11 messages**, while Go recorded **10**, on both runners. This may reflect different system-message or tool-declaration handling, but the precise cause has **not** been validated. Therefore transcript structural parity is **NOT PROVEN**, despite equal tool calls and successful output. The replay is scripted, not real autonomous model reasoning or token/cost measurement.
 
 A second run (same workflow) has been prepared to supply an identical explicit system prompt and verify each stream function actually receives it; its result must be checked independently. Do **not** promote Go to a full Pi replacement on current evidence. Narrow result: Go has lower agent-loop execution latency for this fixed 4-tool offline replay. Full production comparison still needs diverse agent tasks, failure handling, complete transcript semantics, peak RAM/CPU, and model token/cost metrics.
+
+## Corrected shared-system-prompt agent replay: measured and contract-gated (2026-10-17)
+
+[Successful rerun #39050502411](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39050502411), Linux x64 and ARM64, **both success**. The original Pi agent with Node, the identical Pi source with Bun, and pinned Go agent all received **the same explicit system prompt**. Each model replay adapter now checks that the prompt actually reaches its model-stream function; every one of 120 scored repairs passed source-file correctness, tool event count, and six-value Python oracle.
+
+| Runner | Node median agent replay ms | Bun median ms | Go median ms | Node/Go |
+| --- | ---: | ---: | ---: | ---: |
+| Linux x64 | 6.4038 | 4.5654 | **0.4131** | 15.5× |
+| Linux ARM64 | 8.4866 | 4.9848 | **0.4632** | 18.3× |
+
+**Confirmed transcript discrepancy:** Node/Bun Agent `state.messages` has **11** entries, while Go Agent `State().Messages` has **10**, reproducible on both platforms **even after system-prompt alignment**. The TypeScript upstream `createMutableAgentState()` creates and prepends a `system` message to state when starting with system prompt and tools; Go `NewAgent()` keeps `SystemPrompt` as a separate state property and only appends emitted message events to `Messages`. Go's model-context `SystemPrompt` was observed to carry the identical text, so this is specifically a **transcript representation/export compatibility gap**, not proven loss of model instruction. Strict drop-in transcript parity **FAIL**. It matters for serialized sessions and consumers of raw histories, not necessarily for a tool-execution-only adapter.
+
+**Decision:** `GO_TOOL_EXECUTION_LATENCY=LEADER` on this fixed scripted replay; `GO_DROP_IN_AGENT_HISTORY_PARITY=FAIL` on the pinned revision. Do **not** replace Pi TypeScript core or session format based on the speed result. A Go tool executor behind the unchanged Pi agent remains a separate architecture worth measuring end-to-end if/when its IPC cost and fidelity justify it.
+
+A further instrumented run records *individual message role sequences* in JSON to eliminate ambiguity about the extra message and distinguish history representation from tool-result count. Until that run completes, the confirmed discrepancy is the count and the source-based explanation; no unsupported claim of identical serialized history is made.
