@@ -39,7 +39,7 @@ for await(const line of createInterface({input:process.stdin,crlfDelay:Infinity}
    });
    return stream;
   };
-  const agent=new Agent({initialState:{tools},streamFn});
+  const agent=new Agent({initialState:{tools,systemPrompt:"Offline deterministic coding task."},streamFn});
   agent.subscribe(ev=>{events.push(ev.type);if(ev.type==="tool_execution_end")toolResults++});
   const t=performance.now();
   await agent.prompt("Repair the Python calculate function and verify it.");
