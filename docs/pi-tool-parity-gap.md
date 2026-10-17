@@ -18,6 +18,10 @@ The Native AOT experiment implements only `scan-file <path> <literal>`, returnin
 
 ## Gate decision
 
-`PROCESS_FEASIBILITY=PASS`; `BOUNDED_SCAN=PASS`; `PINNED_UPSTREAM_CONTRACT_INVENTORY=PENDING_CI`; `PI_READ_GREPFIND_PARITY=NOT_IMPLEMENTED`; `FULL_AGENT_PARITY=NOT_IMPLEMENTED`.
+`PROCESS_FEASIBILITY=PASS`; `BOUNDED_SCAN=PASS`; `PINNED_UPSTREAM_CONTRACT_INVENTORY=PASS`; `PI_READ_GREPFIND_PARITY=NOT_IMPLEMENTED`; `FULL_AGENT_PARITY=NOT_IMPLEMENTED`.
 
 Do not rank or replace Pi/FineCode on scan-file timings. Next functional progress must select a small subset of **actual Pi output and error behavior** and run both implementations against identical fixtures on the same host; pass only when return values and error semantics match with a reviewed normalization policy.
+
+## Audited CI result — PASS
+
+[GitHub Actions run #39007208435](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39007208435), pinned commit `8efd314fa3d3232ce197d8d7a6a5660530b9d83e`, returned `{"result":"PASS","tools":["read","grep","find"],"parameter_count":13}`. All 13 schema parameters are detected, and the run uploads `pinned-pi-tool-contract-inventory` as a downloadable JSON evidence artifact. The initial source-schema matcher was **incorrect** for nested `Type.Optional(Type.Number(...))`; it caused a deliberate red CI gate and was repaired in `403f6d9` before this passing run. This is a source-schema **inventory only**: C# has **not** passed Pi's runtime behavior contracts.
