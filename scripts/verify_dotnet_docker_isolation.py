@@ -50,6 +50,29 @@ try:
             "scope":"No-network, nonroot read-only disposable container; no hostile code, host escape, or Windows parity tested."}
 finally:
     docker("rm","-f",cid)
+# Second disposable container: actively verify cgroup memory enforcement.
+# Do not run the memory allocation test outside Docker.
+created_memory=docker("create",*flags,a.image,"sandbox-memory-probe")
+assert created_memory.returncode==0,created_memory.stderr
+memory_cid=created_memory.stdout.strip()
+try:
+    memory_run=docker("start","-a",memory_cid,timeout=45)
+    memory_state=docker("inspect",memory_cid)
+    assert memory_state.returncode==0,memory_state.stderr
+    state=json.loads(memory_state.stdout)[0]["State"]
+    assert state["OOMKilled"] is True and state["ExitCode"]==137, {
+        "state":state,"stdout":memory_run.stdout,"stderr":memory_run.stderr
+    }
+    result["memory_enforcement"]={
+        "container_oom_killed":True,
+        "container_exit_code":137,
+        "requested_allocation_bytes":512 * 1024 * 1024,
+        "configured_memory_cap_bytes":128 * 1024 * 1024,
+        "scope":"Docker cgroup OOM kill in a disposable container only"
+    }
+finally:
+    docker("rm","-f",memory_cid)
+
 dest=Path(a.out)
 dest.parent.mkdir(parents=True,exist_ok=True)
 dest.write_text(json.dumps(result,indent=2)+"\n",encoding="utf-8")
