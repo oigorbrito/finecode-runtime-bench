@@ -46,7 +46,7 @@ try {
     const args = ["read-subset", filename];
     if (offset !== undefined) args.push(String(offset));
     if (limit !== undefined) args.push(String(limit));
-    const dotnet = spawnSync(dotnetBinary, args, { encoding: "buffer", timeout: 10000 });
+    const dotnet = spawnSync(dotnetBinary, args, { encoding: null, timeout: 10000 });
     if (dotnet.error) throw dotnet.error;
     const csharp = { status: dotnet.status === 0 ? "ok" : "error",
       output: dotnet.stdout.toString("utf8"), message: dotnet.stderr.toString("utf8").trim() };
