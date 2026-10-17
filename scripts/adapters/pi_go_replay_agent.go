@@ -15,7 +15,7 @@ import (
  "github.com/sky-valley/pi/coding"
 )
 type Req struct{Filename string `json:"filename"`}
-type Result struct{OK bool `json:"ok"`; Elapsed float64 `json:"elapsed_ms"`;Turns int `json:"turns"`;ToolResults int `json:"tool_results"`;Messages int `json:"messages"`;FinalText string `json:"final_text"`;PromptSeen bool `json:"model_system_prompt_seen"`;Events []string `json:"events"`;Error string `json:"error,omitempty"`}
+type Result struct{OK bool `json:"ok"`; Elapsed float64 `json:"elapsed_ms"`;Turns int `json:"turns"`;ToolResults int `json:"tool_results"`;Messages int `json:"messages"`;MessageRoles []string `json:"message_roles"`;FinalText string `json:"final_text"`;PromptSeen bool `json:"model_system_prompt_seen"`;Events []string `json:"events"`;Error string `json:"error,omitempty"`}
 func main(){
  root,err:=filepath.Abs(os.Args[1]);if err!=nil{panic(err)}
  var tools []agent.AgentTool
@@ -61,7 +61,7 @@ func main(){
    t:=time.Now()
    e:=a.Prompt(context.Background(),"Repair Python calculate and verify it")
    reply.Elapsed=float64(time.Since(t).Nanoseconds())/1e6
-   reply.Turns=idx;reply.Messages=len(a.State().Messages)
+   reply.Turns=idx;reply.Messages=len(a.State().Messages);for _,m:=range a.State().Messages{reply.MessageRoles=append(reply.MessageRoles,string(m.MessageRole()))}
    content,readErr:=os.ReadFile(filename)
    reply.FinalText=string(content)
    reply.OK=e==nil&&readErr==nil&&reply.FinalText=="def calculate(n):\n    return n * 2\n"
