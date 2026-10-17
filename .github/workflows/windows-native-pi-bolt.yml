@@ -55,9 +55,12 @@ jobs:
         run: |
           python bench/benchmark.py --runs 15 --warmup 3 --out "$env:GITHUB_WORKSPACE/windows-native.jsonl" --build "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "fork=node $env:GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js"
       - name: Install and validate native Pi-Bolt AOT on Windows
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Stop"
-          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/opensec-git/Pi-Bolt/releases/latest" -Headers @{ "User-Agent" = "FineCode-benchmark" }
+          if (-not $env:GH_TOKEN) { throw "GITHUB_TOKEN unavailable for authenticated release metadata" }
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/opensec-git/Pi-Bolt/releases/latest" -Headers @{ "User-Agent" = "FineCode-benchmark"; "Authorization" = "Bearer $env:GH_TOKEN"; "X-GitHub-Api-Version" = "2022-11-28" }
           $asset = $release.assets | Where-Object { $_.name -match "^pi-bolt-win32-x64(?:-baseline)?\.zip$" } | Select-Object -First 1
           if (-not $asset) { "SKIP: no matching native Windows x64 ZIP release asset" | Tee-Object -FilePath native-aot-status.txt; exit 0 }
           "asset=$($asset.name)" | Out-File native-aot-status.txt
@@ -76,10 +79,12 @@ jobs:
           python bolt/bench/e2e_tools.py --reference "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "native=$($exe.FullName)"
           python bolt/bench/benchmark.py --runs 15 --warmup 3 --out "$env:GITHUB_WORKSPACE/windows-native-aot.jsonl" --build "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "fork=node $env:GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js" --build "native=$($exe.FullName)"
       - name: Record Pi-Bolt native Windows support
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $platform = "windows-x64"
           $uri = "https://api.github.com/repos/opensec-git/Pi-Bolt/releases/latest"
-          $release = Invoke-RestMethod -Uri $uri -Headers @{ "User-Agent" = "FineCode-benchmark" }
+          $release = Invoke-RestMethod -Uri $uri -Headers @{ "User-Agent" = "FineCode-benchmark"; "Authorization" = "Bearer $env:GH_TOKEN"; "X-GitHub-Api-Version" = "2022-11-28" }
           $release.assets | Select-Object -ExpandProperty name | Out-File -Encoding utf8 pi-bolt-release-assets.txt
           $native = @($release.assets | Where-Object { $_.name -match "windows|win32|win-x64" })
           "native_windows_assets=$($native.Count)" | Out-File -Encoding utf8 pi-bolt-windows-support.txt
