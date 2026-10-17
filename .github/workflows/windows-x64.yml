@@ -1,0 +1,74 @@
+name: Windows x64 compatibility
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/windows-x64.yml'
+      - 'scripts/**'
+      - 'sources.json'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout pinned Pi, Rust and Go
+        shell: pwsh
+        run: |
+          python scripts/checkout.py pi_ts
+          python scripts/checkout.py pi_rust
+          python scripts/checkout.py pi_go
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vendor/pi_go/go.mod
+          cache: false
+      - name: Pi TypeScript official offline build and script tests
+        shell: pwsh
+        working-directory: vendor/pi_ts
+        run: |
+          npm install --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run hydrate:model-data
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build:offline
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:scripts
+          exit $LASTEXITCODE
+      - name: Pi Rust official tests and build
+        shell: pwsh
+        working-directory: vendor/pi_rust
+        run: |
+          cargo test --workspace --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --release --locked -p rpi-cli
+          exit $LASTEXITCODE
+      - name: Pi Go official tests and build
+        shell: pwsh
+        working-directory: vendor/pi_go
+        run: |
+          go test ./...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go build -o pi-bench.exe ./cmd/pi
+          exit $LASTEXITCODE
+      - name: Record Windows CLI contracts
+        shell: pwsh
+        run: |
+          python scripts/capture_cli_contract.py --name pi_node_windows --out results/help_node_windows.json -- node vendor/pi_ts/packages/coding-agent/dist/cli.js --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/capture_cli_contract.py --name pi_rust_windows --out results/help_rust_windows.json -- vendor/pi_rust/target/release/rpi.exe --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/capture_cli_contract.py --name pi_go_windows --out results/help_go_windows.json -- vendor/pi_go/pi-bench.exe --help
+          exit $LASTEXITCODE
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-compatibility
+          path: results/*.json
+          if-no-files-found: ignore
