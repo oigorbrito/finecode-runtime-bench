@@ -48,6 +48,14 @@ with tempfile.TemporaryDirectory() as temp:
       "import runpy,sys; f=runpy.run_path(sys.argv[1])['calculate']; assert all(f(n)==n*2 for n in [-13,-1,0,1,7,128])",
       str(filename)],capture_output=True,text=True,timeout=12)
     if test.returncode:raise AssertionError(f"{name}: correctness oracle FAILED {test.stderr}")
+   baseline_contexts=results["node"]["model_contexts"]
+   for candidate in ("bun","go"):
+    contexts=results[candidate].get("model_contexts")
+    if not contexts or len(contexts)!=5 or len(baseline_contexts)!=5:
+     raise AssertionError(f"ELIMINATION_GATE missing model contexts round={idx} candidate={candidate}: {contexts}")
+    for turn,(base,other) in enumerate(zip(baseline_contexts,contexts)):
+     if base["roles"]!=other["roles"] or base["system_prompt"]!=other["system_prompt"]:
+      raise AssertionError(f"ELIMINATION_GATE model-facing context differs round={idx} turn={turn} candidate={candidate} node={base} candidate_context={other}")
    baseline_roles=results["node"]["message_roles"]
    for candidate in ("bun","go"):
     roles=results[candidate]["message_roles"]
