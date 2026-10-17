@@ -122,3 +122,16 @@ The timer covers four tool API calls; the Python program execution oracle is per
 Artifacts: `pi-node-bun-go-coding-linux-x64` and `pi-node-bun-go-coding-linux-arm64`, each containing round-level timings and success gating.
 
 **Decision within measured workload:** retain Go as **speed winner for the tested persistent coding-tool chains on both platforms**, with Bun as a source-preserving faster alternative to Node. Eliminate neither original Pi nor Bun from the agent-level contest. Any replacement recommendation requires equal feature coverage and model/replay agent-loop tasks, peak CPU/RAM including subprocesses, errors and token/cost quality. The earlier Rust and Python eliminations are **pinned-revision compatibility/eligibility eliminations** only.
+
+## Actual agent-loop replay — verified gate (2026-10-17)
+
+[GitHub Actions #39049918558](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39049918558) **PASS on Linux x64 and Linux ARM64**. The original pinned Pi TypeScript `Agent.prompt()` running under Node/Bun and the pinned Go port's `Agent.Prompt()` were driven with a deterministic, offline stream of four model-authored tool calls (`write → edit → read → grep`) followed by a final answer. Every candidate executed 20 scored tasks per runner, each independently validated on six Python inputs. **120/120 code repairs correct**, exactly four tool-result events per repair and five streamed model decisions.
+
+| Platform | Node median agent loop | Bun median agent loop | Go median agent loop | Node/Go |
+| --- | ---: | ---: | ---: | ---: |
+| Linux x64 | 5.8302 ms | 4.4263 ms | **0.3113 ms** | 18.7× |
+| Linux ARM64 | 8.3181 ms | 5.1835 ms | **0.5916 ms** | 14.1× |
+
+**Important parity issue:** TypeScript/Node and TypeScript/Bun recorded **11 messages**, while Go recorded **10**, on both runners. This may reflect different system-message or tool-declaration handling, but the precise cause has **not** been validated. Therefore transcript structural parity is **NOT PROVEN**, despite equal tool calls and successful output. The replay is scripted, not real autonomous model reasoning or token/cost measurement.
+
+A second run (same workflow) has been prepared to supply an identical explicit system prompt and verify each stream function actually receives it; its result must be checked independently. Do **not** promote Go to a full Pi replacement on current evidence. Narrow result: Go has lower agent-loop execution latency for this fixed 4-tool offline replay. Full production comparison still needs diverse agent tasks, failure handling, complete transcript semantics, peak RAM/CPU, and model token/cost metrics.
