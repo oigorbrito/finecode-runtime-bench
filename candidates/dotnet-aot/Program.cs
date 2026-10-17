@@ -16,6 +16,19 @@ if (args.Length == 1 && args[0] == "--version")
     Console.WriteLine("0.2.0-probe");
     return;
 }
+// Deliberate in-container memory exhaustion under Docker's 128 MiB cgroup.
+// The test uses a separate disposable container and must never run on host.
+if (args.Length == 1 && args[0] == "sandbox-memory-probe")
+{
+    byte[] allocated = new byte[512 * 1024 * 1024];
+    for (int i = 0; i < allocated.Length; i += 4096)
+        allocated[i] = 1;
+    GC.KeepAlive(allocated);
+    Console.Error.WriteLine("MEMORY_PROBE_SURVIVED_UNEXPECTEDLY");
+    Environment.ExitCode = 3;
+    return;
+}
+
 // Docker-only negative boundary probe. Never claims host-wide sandbox isolation.
 // The CI launches this as non-root, read-only, no-network and no-capability.
 if (args.Length == 1 && args[0] == "sandbox-probe")
