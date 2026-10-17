@@ -53,7 +53,9 @@ with tempfile.TemporaryDirectory() as temp:
     roles=results[candidate]["message_roles"]
     if roles!=baseline_roles:
      mismatch=next((i for i,(left,right) in enumerate(zip(baseline_roles,roles)) if left!=right),min(len(baseline_roles),len(roles)))
-     raise AssertionError(f"ELIMINATION_GATE transcript role divergence at round={idx} candidate={candidate} first_difference={mismatch} node_roles={baseline_roles} candidate_roles={roles}; task correctness alone does not establish agent-history parity")
+     if candidate=="go" and baseline_roles==["system",*roles] and results[candidate]["model_system_prompt_seen"]:
+      continue  # Go stores system prompt separately; semantic model context must be tested independently.
+     raise AssertionError(f"ELIMINATION_GATE unexplained transcript role divergence at round={idx} candidate={candidate} first_difference={mismatch} node_roles={baseline_roles} candidate_roles={roles}")
    if idx>=3:trials.append({"round":idx-3,
        **{name+"_agent_ms":results[name]["elapsed_ms"] for name in commands},
        **{name+"_messages":results[name]["messages"] for name in commands},
@@ -64,6 +66,7 @@ with tempfile.TemporaryDirectory() as temp:
     "same_four_tool_calls":True,"same_replayed_model_script":True,"shared_system_prompt_confirmed_at_model":True,
     "median_agent_loop_ms":{name:statistics.median(x[name+"_agent_ms"] for x in trials) for name in commands},
     "median_message_count":{name:statistics.median(x[name+"_messages"] for x in trials) for name in commands},
+    "history_role_parity":"Go excludes the leading system role but passes the system prompt separately to model stream; remaining role sequence must match Pi",
     "scope":"Original Agent loops and builtin tools; deterministic replayed assistant tool calls; external Python correctness oracle; no real provider, model inference, tokens, cache, or diverse task quality",
     "trials":trials}
   out=Path(a.out);out.parent.mkdir(parents=True,exist_ok=True)
