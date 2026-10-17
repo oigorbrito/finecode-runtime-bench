@@ -59,3 +59,32 @@ Artifacts `pi-go-warm-linux-x64`, `pi-go-warm-linux-arm64` contain case-level ti
 **Eliminatory claim scoped to this exact workload:** the original Pi Node tools are **not the lowest-latency option** for these warmed `read`/`grep` fixtures. The Go candidate must **not** be declared an agent winner without a larger parity/quality and full-task cost matrix, and this evidence cannot eliminate Pi as a mature functional reference.
 
 The Rust pinned port's own source explicitly states that its `grep`/`find` search skips `.git` but does not fully honor `.gitignore`. A separately executable actual-Pi differential suite (`pi-rust-gitignore-eligibility.yml`) is being validated before issuing an elimination decision. **Do not eliminate Rust from an adapter's build failure.**
+
+## Second pinned-candidate elimination — Rust port strict Pi tool parity (2026-10-17)
+
+[Real original Pi vs pinned Rust tool differential #39046522338](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39046522338): **Linux x64 PASS + Linux ARM64 PASS**. The suite built the actual Rust port `bigfish1913/pi-rust` SHA `b6b8e8311a4d6fd5dd1dc9e436e96f5d4cd22a52`, injected a **temporary test adapter** only into the CI worktree, and directly executed its exported `grep` and `find` tools against Pi's real compiled TypeScript tools. Both received the same initialized Git repository fixture: `.gitignore` containing `*.txt`, with `ignored.txt` containing `NEEDLE`.
+
+| Tool | Actual Pi output (both runners) | Actual Rust port output (both runners) | Strict parity |
+| --- | --- | --- | --- |
+| find `*.txt` | `No files found matching pattern` | `ignored.txt` | FAIL |
+| grep `NEEDLE` | `No matches found` | `ignored.txt:1: NEEDLE` | FAIL |
+
+The CI assertions **PASS because they reproducibly detect the material Rust/Pi divergence**, not because the Rust tool is compatible. Two downloadable artifacts, `rust-gitignore-eligibility-linux-x64` and `rust-gitignore-eligibility-linux-arm64`, preserve actual tool outputs. The pinned Rust source itself notes that `grep` and `find` skip `.git/` directories but do not support full `.gitignore` semantics.
+
+**Decision: `pi_rust@b6b8e831 = ELIMINATED_PINNED_REVISION_FOR_STRICT_TOOL_PARITY`.** This does not eliminate Rust as a programming language, nor deny Rust's startup/memory advantages or potential as an isolated executor. Re-admit a corrected port only after identical-fixture `.gitignore` functional checks pass on both architectures; then complete full agent task, cost and quality benchmarks.
+
+The first two CI attempts failed while resolving **test-adapter Cargo dependencies** (`--locked` / offline cache), not due to Rust functional behavior. The harness was corrected, dependencies resolved on the next run, and the actual functional discrepancy was observed on both runners. Do not count earlier harness failures as candidate failure.
+
+### Current elimination ledger
+
+| Candidate/version | Gate result | Consequence |
+| --- | --- | --- |
+| Python pinned revision `95c8dc1` | Missing required source module, reproduced x64+ARM64 | ELIMINATE revision as currently runnable |
+| Rust pinned revision `b6b8e83` | Actual Pi `grep` and `find` disagree on `.gitignore`, x64+ARM64 | ELIMINATE revision as strict Pi-compatible drop-in |
+| Go pinned revision `53708dc4` | 120/120 matching warm `read`/`grep`, lower observed tool latency on x64+ARM64 | RETAIN; larger functionality and cost gates pending |
+| Pi Node original | Reference correctness and full feature set; slower on measured warm read/grep | RETAIN as production baseline |
+| Pi Bun | Same official Pi source with another runtime/distribution | RETAIN, same-host functionality/performance still needed |
+| C# Native AOT probe | Small tool subset, strong cold execution; no complete agent | RETAIN as component research only |
+| Zig | No pinned comparable implementation | INELIGIBLE pending runnable candidate |
+
+**No new FineCode core migration authorized.** A performance win in warm tool microtasks is not an agent-level superiority verdict. Proven eliminations are version-specific and based on material functionality readiness; do not interpret them as universal language rankings.
