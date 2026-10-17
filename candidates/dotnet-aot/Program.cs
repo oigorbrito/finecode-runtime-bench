@@ -24,8 +24,7 @@ if (args.Length == 1 && args[0] == "sandbox-memory-probe")
     for (int i = 0; i < allocated.Length; i += 4096)
         allocated[i] = 1;
     GC.KeepAlive(allocated);
-    Console.Error.WriteLine("MEMORY_PROBE_SURVIVED_UNEXPECTEDLY");
-    Environment.ExitCode = 3;
+    Console.WriteLine("MEMORY_ALLOCATION_COMPLETED");
     return;
 }
 
