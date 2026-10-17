@@ -25,6 +25,7 @@ jobs:
       - name: Validate token usage accounting (no paid API)
         run: |
           python -m unittest discover -s scripts -p 'test_*usage.py' -v
+          python -m unittest discover -s scripts -p 'test_compare_token_usage.py' -v
           @'
           {"run_id":"mock-1","task_id":"python-1","variant":"pi","request_index":0,"input_tokens":12,"output_tokens":4,"cache_read_tokens":2}
           {"run_id":"mock-1","task_id":"python-1","variant":"pi","request_index":1,"input_tokens":8,"output_tokens":3,"cache_read_tokens":1}
