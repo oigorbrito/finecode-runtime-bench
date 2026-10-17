@@ -1,0 +1,63 @@
+name: Offline baseline
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { candidate: pi_ts, runner: ubuntu-24.04 }
+          - { candidate: pi_rust, runner: ubuntu-24.04 }
+          - { candidate: pi_python, runner: ubuntu-24.04 }
+          - { candidate: pi_ts, runner: ubuntu-24.04-arm }
+          - { candidate: pi_rust, runner: ubuntu-24.04-arm }
+          - { candidate: pi_python, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: matrix.candidate == 'pi_ts'
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.candidate == 'pi_rust'
+      - uses: astral-sh/setup-uv@v6
+        if: matrix.candidate == 'pi_python'
+      - name: Check out pinned source
+        run: python3 scripts/checkout.py '${{ matrix.candidate }}'
+      - name: Pi TypeScript smoke
+        if: matrix.candidate == 'pi_ts'
+        working-directory: vendor/pi_ts
+        run: |
+          npm install --ignore-scripts
+          npm run build:offline
+          npm run test:scripts
+      - name: Pi Rust smoke
+        if: matrix.candidate == 'pi_rust'
+        working-directory: vendor/pi_rust
+        run: |
+          cargo test --workspace --locked
+          cargo build --release --locked -p rpi-cli
+      - name: Pi Python smoke
+        if: matrix.candidate == 'pi_python'
+        working-directory: vendor/pi_python
+        run: |
+          uv sync
+          uv run pytest -q
+      - name: Pi TypeScript CLI startup
+        if: matrix.candidate == 'pi_ts'
+        run: python3 scripts/measure.py --name pi_ts --out results/pi_ts.json -- node vendor/pi_ts/packages/coding-agent/dist/cli.js --version
+      - name: Pi Rust CLI startup
+        if: matrix.candidate == 'pi_rust'
+        run: python3 scripts/measure.py --name pi_rust --out results/pi_rust.json -- vendor/pi_rust/target/release/rpi --version
+      - name: Publish evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-${{ matrix.candidate }}-${{ matrix.runner }}
+          path: results/*.json
+          if-no-files-found: ignore
