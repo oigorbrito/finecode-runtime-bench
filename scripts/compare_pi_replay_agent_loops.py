@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory() as temp:
    order=list(commands);rng.shuffle(order)
    results={name:call(name,case) for name in order}
    for name,out in results.items():
-    if out.get("error") or not out.get("ok"):
+    if out.get("error") or not out.get("ok") or not out.get("model_system_prompt_seen"):
      raise AssertionError(f"{name} real agent failed on round {idx}: {out}")
     if out.get("tool_results")!=4 or out.get("turns")!=5:
      raise AssertionError(f"{name}: unexpected agent execution transcript: {out}")
@@ -52,7 +52,7 @@ with tempfile.TemporaryDirectory() as temp:
        **{name+"_events":results[name]["events"] for name in commands}})
   report={"kind":"actual_pinned_agent_loop_three_runtime_offline_model_replay",
     "rounds":a.rounds,"correct_candidate_task_runs":3*a.rounds,
-    "same_four_tool_calls":True,"same_replayed_model_script":True,
+    "same_four_tool_calls":True,"same_replayed_model_script":True,"shared_system_prompt_confirmed_at_model":True,
     "median_agent_loop_ms":{name:statistics.median(x[name+"_agent_ms"] for x in trials) for name in commands},
     "median_message_count":{name:statistics.median(x[name+"_messages"] for x in trials) for name in commands},
     "scope":"Original Agent loops and builtin tools; deterministic replayed assistant tool calls; external Python correctness oracle; no real provider, model inference, tokens, cache, or diverse task quality",
