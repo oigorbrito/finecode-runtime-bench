@@ -1,0 +1,62 @@
+name: Live pinned Pi grep then find vs C# bounded comparison
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/pi-dotnet-grep-find-live.yml'
+      - 'scripts/compare_pi_grep_find_live.mjs'
+      - 'candidates/dotnet-aot/**'
+      - 'sources.json'
+permissions:
+  contents: read
+jobs:
+  compare:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, rid: linux-x64, exe: Probe }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64, exe: Probe }
+          - { os: windows-2025, rid: win-x64, exe: Probe.exe }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Checkout immutable Pi
+        shell: pwsh
+        run: |
+          python scripts/checkout.py pi_ts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build official Pi without paid calls
+        working-directory: vendor/pi_ts
+        shell: pwsh
+        run: |
+          npm install --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run hydrate:model-data
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build:offline
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile C# Native AOT
+        shell: pwsh
+        run: |
+          dotnet publish candidates/dotnet-aot/Probe.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishAot=true -o candidates/dotnet-aot/out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compare grep first and find second
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force results | Out-Null
+          node scripts/compare_pi_grep_find_live.mjs "candidates/dotnet-aot/out/${{ matrix.exe }}" "results/grep-find-${{ matrix.rid }}.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-pi-grep-find-${{ matrix.rid }}
+          path: results/grep-find-${{ matrix.rid }}.json
+          if-no-files-found: ignore
