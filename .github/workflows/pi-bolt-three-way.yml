@@ -14,14 +14,15 @@ jobs:
       - name: Toolchain
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: latest
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - name: Fetch original and optimized Pi sources
         run: |
           git clone --depth 1 https://github.com/opensec-git/Pi-Bolt.git bolt
-          git clone --depth 1 --branch v1.1.0 https://github.com/earendil-works/pi.git original
+          git clone https://github.com/earendil-works/pi.git original
+          git -C original checkout b06c1f2cf1dea6af8748ddeee18c23587d2cb7c6
           git -C bolt rev-parse HEAD | tee bolt-sha.txt
           git -C original rev-parse HEAD | tee original-sha.txt
           cat bolt/VERSION
