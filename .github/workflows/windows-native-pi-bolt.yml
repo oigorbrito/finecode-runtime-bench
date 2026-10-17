@@ -1,0 +1,75 @@
+name: Windows native Pi and Pi-Bolt
+on:
+  push:
+    branches: [bench-windows-native-pi-bolt]
+  pull_request:
+    branches: [bench-pi-bolt-isolated-vs-full]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-native:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Checkout original and Pi-Bolt fork
+        run: |
+          git clone --depth 1 https://github.com/earendil-works/pi.git original
+          git clone --depth 1 https://github.com/opensec-git/Pi-Bolt.git bolt
+          git -C original rev-parse HEAD | Out-File -Encoding utf8 original-sha.txt
+          git -C bolt rev-parse HEAD | Out-File -Encoding utf8 bolt-sha.txt
+          node --version
+          bun --version
+      - name: Build original Pi
+        working-directory: original
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+      - name: Build Pi-Bolt fork as normal Node project
+        working-directory: bolt
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build:offline
+      - name: Verify native Windows Node baselines
+        run: |
+          node original/packages/coding-agent/dist/bundle/cli.js --version
+          node bolt/packages/coding-agent/dist/bundle/cli.js --version
+      - name: Run native Windows correctness parity
+        working-directory: bolt
+        run: |
+          python bench/e2e_tools.py --reference "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "fork=node $env:GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js"
+      - name: Benchmark native Windows Node implementations
+        working-directory: bolt
+        run: |
+          python bench/benchmark.py --runs 15 --warmup 3 --out "$env:GITHUB_WORKSPACE/windows-native.jsonl" --build "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "fork=node $env:GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js"
+      - name: Record Pi-Bolt native Windows support
+        run: |
+          $platform = "windows-x64"
+          $uri = "https://api.github.com/repos/opensec-git/Pi-Bolt/releases/latest"
+          $release = Invoke-RestMethod -Uri $uri -Headers @{ "User-Agent" = "FineCode-benchmark" }
+          $release.assets | Select-Object -ExpandProperty name | Out-File -Encoding utf8 pi-bolt-release-assets.txt
+          $native = @($release.assets | Where-Object { $_.name -match "windows|win32|win-x64" })
+          "native_windows_assets=$($native.Count)" | Out-File -Encoding utf8 pi-bolt-windows-support.txt
+          if ($native.Count -eq 0) { "Native Windows AOT binary unavailable in latest release; NOT benchmarked." | Add-Content pi-bolt-windows-support.txt }
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-pi-bolt-evidence
+          path: |
+            original-sha.txt
+            bolt-sha.txt
+            windows-native.jsonl
+            pi-bolt-release-assets.txt
+            pi-bolt-windows-support.txt
+          if-no-files-found: ignore
