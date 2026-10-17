@@ -37,7 +37,13 @@ jobs:
           npm run hydrate:model-data
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build:offline
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          exit $LASTEXITCODE
+      - name: Pi TypeScript official script tests (Windows upstream npm spawn)
+        id: pi_scripts
+        continue-on-error: true
+        shell: pwsh
+        working-directory: vendor/pi_ts
+        run: |
           npm run test:scripts
           exit $LASTEXITCODE
       - name: Pi Rust official tests and build
@@ -72,3 +78,11 @@ jobs:
           name: windows-x64-compatibility
           path: results/*.json
           if-no-files-found: ignore
+      - name: Preserve upstream script-test failure as failing gate
+        if: always()
+        shell: pwsh
+        run: |
+          if ("${{ steps.pi_scripts.outcome }}" -eq "failure") {
+            Write-Error "Pi upstream script suite failed; other compatibility results remain separately visible."
+            exit 1
+          }
