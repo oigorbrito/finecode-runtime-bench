@@ -29,6 +29,7 @@ jobs:
         run: |
           npm install --ignore-scripts
           npm run hydrate:model-data
+          npm run build:offline
           npm --prefix packages/coding-agent run build:binary
           test -x packages/coding-agent/dist/pi
       - name: Measure standalone --version
