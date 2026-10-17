@@ -83,19 +83,9 @@ jobs:
         shell: pwsh
         working-directory: vendor/pi_go
         run: |
-          Write-Output "HOME=$env:HOME"
-          Write-Output "USERPROFILE=$env:USERPROFILE"
-          $probe = Join-Path $env:RUNNER_TEMP 'home_probe.go'
-          @'
-          package main
-          import ("fmt"; "os")
-          func main() { h, e := os.UserHomeDir(); fmt.Printf("UserHomeDir=%q HOME=%q USERPROFILE=%q error=%v\n", h, os.Getenv("HOME"), os.Getenv("USERPROFILE"), e) }
-          '@ | Set-Content -Path $probe
-          $originalHome = $env:HOME
-          $env:HOME = Join-Path $env:RUNNER_TEMP 'only-home-fixture'
-          go run $probe
-          $env:HOME = $originalHome
-          go run $probe
+          Write-Output "HOME variable: $env:HOME"
+          Write-Output "USERPROFILE variable: $env:USERPROFILE"
+          go env GOPATH
           go test ./coding -run TestLoadSkillsPreservesDiscoveryOrder -count=1 -v
           exit $LASTEXITCODE
       - name: Pi Go native CLI build
