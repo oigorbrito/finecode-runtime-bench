@@ -112,3 +112,9 @@ The same-run Pi comparison now includes:
 The native `find-subset` .gitignore discrepancy is still a separately asserted known gap. The fd-delegated branch still requires an external executable and has no complete agent cancellation contract, sandboxing, deterministic memory budget, or guaranteed parity on every glob/ignore edge case. The timeout-and-kill branch itself requires a deterministic slow-child test before declaring `TIMEOUT_CANCEL=PASS`.
 
 Reproducible matrix workflow: `.github/workflows/pi-dotnet-grep-find-live.yml`; implementation `candidates/dotnet-aot/Program.cs`; head-to-head harness `scripts/compare_pi_grep_find_live.mjs`.
+
+### Verified direct matrix result — PASS
+
+[Run #39042649278](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39042649278) completed **3/3 jobs PASS**: Windows x64, Linux x64, Linux ARM64. On **each** runner the tested cases were: 8/8 existing single-file grep, 5/5 native recursive find, **7/7 fd-delegated find** (including three new path-glob/explicit-limit cases), and **3/3 separate argument-safety assertions**. Totals: **60 successful Pi-versus-C# positive comparisons** (20 per runner), **9 successful guard checks** (3 per runner), plus the **three independently observed native .gitignore known divergences** (not counted as parity). No unexpected mismatch. Three case-level JSON artifacts are published in the workflow.
+
+The timeout branch is **implemented but not directly exercised by a deterministic slow-child fixture**; consequently cancellation/timeout semantics and actual resource-use budgets remain **NOT VERIFIED**. The guard checks verify rejection of invalid resource arguments, not runtime termination, full isolation, or memory limits. This is a probe/harness result and must not drive a FineCode core replacement.
