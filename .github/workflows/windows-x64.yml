@@ -110,6 +110,6 @@ jobs:
           $candidate = '${{ matrix.candidate }}'
           $outcome = if ($candidate -eq 'pi_ts') { '${{ steps.official_ts.outcome }}' } elseif ($candidate -eq 'pi_rust') { '${{ steps.official_rust.outcome }}' } else { '${{ steps.official_go.outcome }}' }
           if ($outcome -ne 'success') {
-            Write-Error "Official upstream test gate for $candidate: $outcome"
+            Write-Error "Official upstream test gate for ${candidate}: $outcome"
             exit 1
           }
