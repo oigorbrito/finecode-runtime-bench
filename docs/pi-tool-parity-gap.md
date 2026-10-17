@@ -33,3 +33,18 @@ Do not rank or replace Pi/FineCode on scan-file timings. Next functional progres
 The implementation is explicitly exposed as `read-subset`, **not** `read`: it mirrors a **bounded subset** of the immutable Pi `read.ts` logic at lines 156–204, for small text without truncation. The first CI invocation failed because the Python subprocess text decoder normalized CRLF; the oracle was corrected to capture raw bytes and then UTF-8 decode, preserving literal newline sequences. This was **a harness defect**, not proof of C# failure.
 
 Remaining not implemented: exact agent-tool parameter/envelope contract, full truncation messages, images, line/byte limits under oversized input, path resolution, stream/cancel behavior and tool integration. The upstream Pi tool was **not executed head-to-head in this gate**; Python independently encodes the reviewed expected text behavior. Thus `BOUNDED_TEXT_READ=PASS`, `FULL_PI_READ_PARITY=NOT_PROVEN`, `PI_GREP_PARITY=NOT_RUN`, `PI_FIND_PARITY=NOT_RUN` and `AGENT_PARITY=NOT_RUN`. This cannot justify FineCode core migration.
+
+## Direct execution against the real pinned Pi read tool — PASS
+
+[GitHub Actions run #39008221402](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39008221402), executed `createReadToolDefinition(...).execute(...)` from the **built original Pi** checked out at SHA `8efd314fa3d3232ce197d8d7a6a5660530b9d83e`; on the same runner the benchmark executed the .NET 9 Native AOT `read-subset` binary with identical file fixtures and offsets/limits. The harness compares successful text outputs **exactly**, including CRLF, and compares the offset-boundary error message when both calls fail.
+
+| Runner | Direct read-subset comparisons | Result |
+| --- | ---: | --- |
+| Linux x64 | 11/11 | PASS |
+| Linux ARM64 | 11/11 | PASS |
+| Windows x64 | 11/11 | PASS |
+| **Total** | **33/33** | **PASS** |
+
+Artifacts `live-pi-read-linux-x64`, `live-pi-read-linux-arm64` and `live-pi-read-win-x64` contain case-level raw output and status. Tests exercise empty, one-line, limited, zero/negative/invalid offsets, trailing newline, CRLF, UTF-8, and zero line limit. No paid model/API calls; no changes to either upstream source tree or production FineCode.
+
+**Decision:** `PINNED_PI_VS_DOTNET_SMALL_TEXT_READ_OUTPUT=PASS` for exactly the tested cases. This is the **first true head-to-head Pi tool execution** in this experiment. It still does **not** prove the full `read` contract: truncation beyond thresholds, images, path expansion, cancellation, virtual operations, tool-result envelope and agent-loop integration remain untested or unimplemented. Similarly `grep` and `find` parity remain not implemented. No core migration recommendation.
