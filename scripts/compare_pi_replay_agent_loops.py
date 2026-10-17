@@ -39,6 +39,8 @@ with tempfile.TemporaryDirectory() as temp:
      raise AssertionError(f"{name} real agent failed on round {idx}: {out}")
     if out.get("tool_results")!=4 or out.get("turns")!=5:
      raise AssertionError(f"{name}: unexpected agent execution transcript: {out}")
+    if len(out.get("message_roles",[]))!=out.get("messages"):
+     raise AssertionError(f"{name}: transcript length/roles mismatch {out}")
     if out.get("final_text")!="def calculate(n):\n    return n * 2\n":
      raise AssertionError(f"{name}: incorrect final code {out}")
     filename=root/name/case
@@ -49,7 +51,8 @@ with tempfile.TemporaryDirectory() as temp:
    if idx>=3:trials.append({"round":idx-3,
        **{name+"_agent_ms":results[name]["elapsed_ms"] for name in commands},
        **{name+"_messages":results[name]["messages"] for name in commands},
-       **{name+"_events":results[name]["events"] for name in commands}})
+       **{name+"_events":results[name]["events"] for name in commands},
+       **{name+"_roles":results[name]["message_roles"] for name in commands}})
   report={"kind":"actual_pinned_agent_loop_three_runtime_offline_model_replay",
     "rounds":a.rounds,"correct_candidate_task_runs":3*a.rounds,
     "same_four_tool_calls":True,"same_replayed_model_script":True,"shared_system_prompt_confirmed_at_model":True,
