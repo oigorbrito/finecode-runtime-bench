@@ -66,3 +66,17 @@ These are *experimental narrow subsets*. Success must never be reported as compl
 | **Total** | **7/7** | **7/7** | **7/7** | **21/21** |
 
 The harness compares successful tool text output **byte-for-byte after UTF-8 decoding**, and stores case-level expected and observed output, exit code and status in artifacts `live-pi-grep-find-linux-x64`, `live-pi-grep-find-linux-arm64`, and `live-pi-grep-find-win-x64`. This is a deliberately bounded direct comparison, **not complete Pi tool compatibility**. The C# implementation currently lacks regex, recursive traversal, gitignore behavior, glob path semantics, context, cancellation, output truncation, large files and extension integration. No claim of equivalent agent loops or lower total agent cost follows. FineCode main and the pinned Pi source have not been changed.
+
+## Expanded direct parity and deliberate negative control — 2026-10-17
+
+**Positive functional gate:** [run #39031505878](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39031505878) passed **39/39** head-to-head Pi-versus-C# comparisons across Windows x64, Linux x64, Linux ARM64 (8 `grep` + 5 `find` per runner). New tested behavior includes basic regex anchors/classes/alternation and case-insensitive literal search for a single text file, plus recursive basename-glob discovery with an unambiguous matching file. These *specific cases* match actual pinned Pi output, not a Python simulation. The C# implementation uses .NET Regex with a timeout; it is not a ripgrep parser or full Pi implementation.
+
+**Negative control / known incompatibility:** [run #39031770927](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39031770927) separately reran **39/39 positive cases PASS** and demonstrated an **expected, material difference on all three platforms**: in a temporary Git repository with `.gitignore` matching `*.tmp`, the original Pi `find` returned `No files found matching pattern`, but the bounded C# `find-subset` returned `ignored.tmp`. This difference is intentionally included as `knownGaps[].expectedDivergence=true` in each JSON artifact, and the test fails if the characterization unexpectedly changes. The three known divergences **are not counted as parity passes**.
+
+| Runner | Positive grep | Positive find | .gitignore negative control |
+| --- | ---: | ---: | --- |
+| Linux x64 | 8/8 PASS | 5/5 PASS | DIFFERENT (expected) |
+| Linux ARM64 | 8/8 PASS | 5/5 PASS | DIFFERENT (expected) |
+| Windows x64 | 8/8 PASS | 5/5 PASS | DIFFERENT (expected) |
+
+**Decision:** `BOUNDED_LITERAL_REGEX_GREP=PASS`, `BOUNDED_RECURSIVE_BASENAME_FIND=PASS`, `FIND_GITIGNORE_COMPATIBILITY=FAIL/NOT_IMPLEMENTED`; overall `FULL_PI_GREP_FIND_PARITY=NOT_PROVEN`. No direct performance ranking or FineCode core migration justified. Implementing full gitignore handling, symlink traversal, path-aware globs, streaming, cancellation, output limits and tool-envelope equivalence requires separate source-based and executable tests.
