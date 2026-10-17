@@ -54,6 +54,20 @@ jobs:
         working-directory: bolt
         run: |
           python bench/benchmark.py --runs 15 --warmup 3 --out "$env:GITHUB_WORKSPACE/windows-native.jsonl" --build "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "fork=node $env:GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js"
+      - name: Install and validate native Pi-Bolt AOT on Windows
+        run: |
+          $ErrorActionPreference = "Stop"
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/opensec-git/Pi-Bolt/releases/latest" -Headers @{ "User-Agent" = "FineCode-benchmark" }
+          $asset = $release.assets | Where-Object { $_.name -match "windows.*x64|win.*x64" -and $_.name -match "\\.zip$" } | Select-Object -First 1
+          if (-not $asset) { "SKIP: no matching native Windows x64 ZIP release asset" | Tee-Object -FilePath native-aot-status.txt; exit 0 }
+          "asset=$($asset.name)" | Out-File native-aot-status.txt
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile pi-bolt-win.zip
+          Expand-Archive pi-bolt-win.zip -DestinationPath pi-bolt-native
+          $exe = Get-ChildItem pi-bolt-native -Recurse -Filter "*.exe" | Where-Object { $_.Name -match "pi" } | Select-Object -First 1
+          if (-not $exe) { throw "No Pi executable found in downloaded release asset" }
+          & $exe.FullName --version
+          python bolt/bench/e2e_tools.py --reference "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "native=$($exe.FullName)"
+          python bolt/bench/benchmark.py --runs 15 --warmup 3 --out "$env:GITHUB_WORKSPACE/windows-native-aot.jsonl" --build "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "fork=node $env:GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js" --build "native=$($exe.FullName)"
       - name: Record Pi-Bolt native Windows support
         run: |
           $platform = "windows-x64"
@@ -72,6 +86,8 @@ jobs:
             original-sha.txt
             bolt-sha.txt
             windows-native.jsonl
+            windows-native-aot.jsonl
+            native-aot-status.txt
             pi-bolt-release-assets.txt
             pi-bolt-windows-support.txt
           if-no-files-found: ignore
