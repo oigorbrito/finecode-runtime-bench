@@ -16,3 +16,16 @@ Reproduce on an Ubuntu 24.04 x64 environment with .NET 9 SDK and Native AOT comp
 dotnet publish candidates/dotnet-aot/Probe.csproj -c Release -r linux-x64 --self-contained true -p:PublishAot=true -o candidates/dotnet-aot/out
 python3 scripts/measure_dotnet_aot.py --binary candidates/dotnet-aot/out/Probe --out results/dotnet-aot-linux-x64.json
 ```
+
+## First CI evidence (2026-10-17)
+
+[Linux x64 workflow run 39003348079](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39003348079) **PASS**: .NET 9 Native AOT publish, executable `--help` and `--version`, and 25 independent process invocations.
+
+| Measure | Observed median |
+|---|---:|
+| CLI `--help` wall time | 3.130823 ms |
+| Peak RSS | 3.3984375 MiB |
+| Binary size | 1,331,832 bytes |
+| CPU (user + system) | 0.0 ms (measurement **below resolution**, not zero CPU consumption) |
+
+The CPU fields originate from GNU `/usr/bin/time` with limited decimal precision. Values rounded to zero cannot demonstrate zero CPU usage. This experiment is a **trivial native-process lower bound**, not Pi feature parity; ranking against any coding agent would be invalid.
