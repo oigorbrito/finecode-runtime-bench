@@ -58,7 +58,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $release = Invoke-RestMethod -Uri "https://api.github.com/repos/opensec-git/Pi-Bolt/releases/latest" -Headers @{ "User-Agent" = "FineCode-benchmark" }
-          $asset = $release.assets | Where-Object { $_.name -match "^pi-bolt-win32-x64(?:-baseline)?\\.zip$" -and $_.name -match "\\.zip$" } | Select-Object -First 1
+          $asset = $release.assets | Where-Object { $_.name -match "^pi-bolt-win32-x64(?:-baseline)?\.zip$" -and $_.name -match "\\.zip$" } | Select-Object -First 1
           if (-not $asset) { "SKIP: no matching native Windows x64 ZIP release asset" | Tee-Object -FilePath native-aot-status.txt; exit 0 }
           "asset=$($asset.name)" | Out-File native-aot-status.txt
           Invoke-WebRequest -Uri $asset.browser_download_url -OutFile pi-bolt-win.zip
