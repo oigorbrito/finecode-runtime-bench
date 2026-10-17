@@ -77,6 +77,52 @@ jobs:
         run: |
           go test ./...
           exit $LASTEXITCODE
+      - name: Diagnose Go Windows user-home fixture independently
+        if: matrix.candidate == 'pi_go'
+        continue-on-error: true
+        shell: pwsh
+        working-directory: vendor/pi_go
+        run: |
+          Write-Output "HOME=$env:HOME"
+          Write-Output "USERPROFILE=$env:USERPROFILE"
+          go test ./coding -run '^TestLoadSkillsPreservesDiscoveryOrder
+        if: matrix.candidate == 'pi_go'
+        shell: pwsh
+        working-directory: vendor/pi_go
+        run: |
+          go build -o pi-bench.exe ./cmd/pi
+          exit $LASTEXITCODE
+      - name: Capture CLI contract
+        if: success()
+        shell: pwsh
+        run: |
+          if ('${{ matrix.candidate }}' -eq 'pi_ts') {
+            python scripts/capture_cli_contract.py --name pi_node_windows --out results/help_node_windows.json -- node vendor/pi_ts/packages/coding-agent/dist/cli.js --help
+          } elseif ('${{ matrix.candidate }}' -eq 'pi_rust') {
+            python scripts/capture_cli_contract.py --name pi_rust_windows --out results/help_rust_windows.json -- vendor/pi_rust/target/release/rpi.exe --help
+          } else {
+            python scripts/capture_cli_contract.py --name pi_go_windows --out results/help_go_windows.json -- vendor/pi_go/pi-bench.exe --help
+          }
+          exit $LASTEXITCODE
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.candidate }}-x64
+          path: results/*.json
+          if-no-files-found: ignore
+      - name: Enforce official upstream test result
+        if: always()
+        shell: pwsh
+        run: |
+          $candidate = '${{ matrix.candidate }}'
+          $outcome = if ($candidate -eq 'pi_ts') { '${{ steps.official_ts.outcome }}' } elseif ($candidate -eq 'pi_rust') { '${{ steps.official_rust.outcome }}' } else { '${{ steps.official_go.outcome }}' }
+          if ($outcome -ne 'success') {
+            Write-Error "Official upstream test gate for ${candidate}: $outcome"
+            exit 1
+          }
+ -count=1 -v
+          exit $LASTEXITCODE
       - name: Pi Go native CLI build
         if: matrix.candidate == 'pi_go'
         shell: pwsh
