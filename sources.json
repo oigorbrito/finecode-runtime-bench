@@ -10,5 +10,10 @@
   "pi_python": {
     "url": "https://github.com/openxjarvis/pi-mono-python.git",
     "sha": "95c8dc1ffa260bc0080c00c1f66e19844e8f53a6"
+  },
+  "pi_go": {
+    "url": "https://github.com/egomarker/pi-go2.git",
+    "sha": "53708dc48e03cdf59b7d7f63f059c65ad4bb45dc",
+    "notes": "Go candidate; non-parity exploratory comparison; module github.com/sky-valley/pi"
   }
 }
