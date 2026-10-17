@@ -8,13 +8,14 @@ import (
  "fmt"
  "os"
  "path/filepath"
+ "strings"
  "time"
  "github.com/sky-valley/pi/agent"
  "github.com/sky-valley/pi/ai"
  "github.com/sky-valley/pi/coding"
 )
 type Req struct{Filename string `json:"filename"`}
-type Result struct{OK bool `json:"ok"`; Elapsed float64 `json:"elapsed_ms"`;Turns int `json:"turns"`;ToolResults int `json:"tool_results"`;Messages int `json:"messages"`;FinalText string `json:"final_text"`;Events []string `json:"events"`;Error string `json:"error,omitempty"`}
+type Result struct{OK bool `json:"ok"`; Elapsed float64 `json:"elapsed_ms"`;Turns int `json:"turns"`;ToolResults int `json:"tool_results"`;Messages int `json:"messages"`;FinalText string `json:"final_text"`;PromptSeen bool `json:"model_system_prompt_seen"`;Events []string `json:"events"`;Error string `json:"error,omitempty"`}
 func main(){
  root,err:=filepath.Abs(os.Args[1]);if err!=nil{panic(err)}
  var tools []agent.AgentTool
@@ -35,6 +36,7 @@ func main(){
    }
    idx:=0
    stream:=func(ctx context.Context,model *ai.Model,req ai.Context,opts *ai.SimpleStreamOptions)*ai.AssistantMessageEventStream{
+    reply.PromptSeen = reply.PromptSeen || strings.Contains(req.SystemPrompt,"Offline deterministic coding task.")
     var msg *ai.AssistantMessage
     if idx<len(calls){msg=&ai.AssistantMessage{Content:ai.ContentList{calls[idx]},StopReason:ai.StopToolUse,Model:"replay"}}else{
      msg=&ai.AssistantMessage{Content:ai.ContentList{ai.TextContent{Text:"task finished"}},StopReason:ai.StopStop,Model:"replay"}
