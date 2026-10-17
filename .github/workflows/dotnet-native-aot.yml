@@ -6,29 +6,55 @@ on:
       - '.github/workflows/dotnet-native-aot.yml'
       - 'candidates/dotnet-aot/**'
       - 'scripts/measure_dotnet_aot.py'
+      - 'scripts/measure_dotnet_aot_windows.ps1'
 permissions:
   contents: read
 jobs:
   dotnet-aot-probe:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            rid: linux-x64
+            executable: Probe
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+            executable: Probe
+          - os: windows-2025
+            rid: win-x64
+            executable: Probe.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
       - name: Build Native AOT
-        run: dotnet publish candidates/dotnet-aot/Probe.csproj -c Release -r linux-x64 --self-contained true -p:PublishAot=true -o candidates/dotnet-aot/out
-      - name: Verify ELF and absence of .NET host requirement
+        shell: pwsh
         run: |
-          file candidates/dotnet-aot/out/Probe
-          candidates/dotnet-aot/out/Probe --help
-          candidates/dotnet-aot/out/Probe --version
-      - name: Measure cold CLI help, CPU and peak RSS
-        run: python3 scripts/measure_dotnet_aot.py --binary candidates/dotnet-aot/out/Probe --out results/dotnet-aot-linux-x64.json
+          dotnet publish candidates/dotnet-aot/Probe.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishAot=true -o candidates/dotnet-aot/out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native CLI contract
+        shell: pwsh
+        run: |
+          & "candidates/dotnet-aot/out/${{ matrix.executable }}" --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "candidates/dotnet-aot/out/${{ matrix.executable }}" --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Measure Linux CPU/RSS and cold help
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 scripts/measure_dotnet_aot.py --binary candidates/dotnet-aot/out/Probe --out results/dotnet-aot-${{ matrix.rid }}.json
+      - name: Measure Windows CPU/RSS and cold help
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/measure_dotnet_aot_windows.ps1 -Binary "candidates/dotnet-aot/out/Probe.exe" -Out "results/dotnet-aot-${{ matrix.rid }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dotnet-aot-linux-x64
-          path: results/dotnet-aot-linux-x64.json
+          name: dotnet-aot-${{ matrix.rid }}
+          path: results/dotnet-aot-${{ matrix.rid }}.json
           if-no-files-found: ignore
