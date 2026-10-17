@@ -61,7 +61,14 @@ jobs:
           $asset = $release.assets | Where-Object { $_.name -match "^pi-bolt-win32-x64(?:-baseline)?\.zip$" } | Select-Object -First 1
           if (-not $asset) { "SKIP: no matching native Windows x64 ZIP release asset" | Tee-Object -FilePath native-aot-status.txt; exit 0 }
           "asset=$($asset.name)" | Out-File native-aot-status.txt
+          "release_tag=$($release.tag_name)" | Add-Content native-aot-status.txt
+          "release_published_at=$($release.published_at)" | Add-Content native-aot-status.txt
+          "release_target_commitish=$($release.target_commitish)" | Add-Content native-aot-status.txt
+          "asset_digest=$($asset.digest)" | Add-Content native-aot-status.txt
           Invoke-WebRequest -Uri $asset.browser_download_url -OutFile pi-bolt-win.zip
+          $actualHash = (Get-FileHash pi-bolt-win.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "download_sha256=$actualHash" | Add-Content native-aot-status.txt
+          if ($asset.digest -and $asset.digest -match "^sha256:(.+)$" -and $actualHash -ne $Matches[1].ToLowerInvariant()) { throw "AOT asset SHA256 mismatch" }
           Expand-Archive pi-bolt-win.zip -DestinationPath pi-bolt-native
           $exe = Get-ChildItem pi-bolt-native -Recurse -Filter "*.exe" | Where-Object { $_.Name -match "pi" } | Select-Object -First 1
           if (-not $exe) { throw "No Pi executable found in downloaded release asset" }
