@@ -17,7 +17,7 @@ Windows Server 2025 x64 GitHub runner. Official source pinned in `sources.json`.
 - Final independent build-and-test run [38999329945](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/38999329945):
   - Go native `go build -o pi-bench.exe ./cmd/pi` **PASS**; `--help` contract capture **PASS**; official tests **FAIL**.
   - Pi TypeScript `npm run build:offline` **PASS**; `--help` contract capture **PASS**; official script suite **FAIL** (`spawnSync npm ENOENT`).
-  - Rust official tests **PASS in this run**, after path/symlink failure in previous run; release build/result must be checked separately before claiming runtime success.
+  - Rust official tests **FAIL**: 503 PASS, 1 FAIL, 2 ignored in rpi-cli, same path/symlink test as previous run. The GitHub step conclusion looked green only because `continue-on-error` was set; the raw log and `steps.official_rust.outcome` confirm FAIL. Rust release build **PASS** and CLI help capture **PASS**. The final test-gate script itself also had a PowerShell interpolation error (`$candidate:`), corrected in commit `db64b32`.
 
 ## Engineering assessment
 
