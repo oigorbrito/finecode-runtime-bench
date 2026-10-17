@@ -1,0 +1,35 @@
+name: Groq Free controlled token smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  groq-free:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secret availability without revealing it
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          if [ -z "$GROQ_API_KEY" ]; then
+            echo 'FAIL: GROQ_API_KEY secret not available'
+            exit 1
+          fi
+          echo 'PASS: secret available'
+      - name: Call free model once and validate provider token usage
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          python scripts/groq_free_smoke.py
+          test -s groq-usage-events.jsonl
+          python scripts/token_usage.py groq-usage-events.jsonl --out groq-usage-summary.jsonl
+          python -c "import json; x=json.loads(open('groq-usage-summary.jsonl').read()); assert x['usage_complete'] and x['provider_reported_total_tokens'] > 0"
+      - name: Upload only sanitized counters
+        uses: actions/upload-artifact@v4
+        with:
+          name: groq-free-token-counters
+          path: groq-usage-summary.jsonl
+          if-no-files-found: error
+          retention-days: 7
