@@ -48,6 +48,12 @@ with tempfile.TemporaryDirectory() as temp:
       "import runpy,sys; f=runpy.run_path(sys.argv[1])['calculate']; assert all(f(n)==n*2 for n in [-13,-1,0,1,7,128])",
       str(filename)],capture_output=True,text=True,timeout=12)
     if test.returncode:raise AssertionError(f"{name}: correctness oracle FAILED {test.stderr}")
+   baseline_roles=results["node"]["message_roles"]
+   for candidate in ("bun","go"):
+    roles=results[candidate]["message_roles"]
+    if roles!=baseline_roles:
+     mismatch=next((i for i,(left,right) in enumerate(zip(baseline_roles,roles)) if left!=right),min(len(baseline_roles),len(roles)))
+     raise AssertionError(f"ELIMINATION_GATE transcript role divergence at round={idx} candidate={candidate} first_difference={mismatch} node_roles={baseline_roles} candidate_roles={roles}; task correctness alone does not establish agent-history parity")
    if idx>=3:trials.append({"round":idx-3,
        **{name+"_agent_ms":results[name]["elapsed_ms"] for name in commands},
        **{name+"_messages":results[name]["messages"] for name in commands},
