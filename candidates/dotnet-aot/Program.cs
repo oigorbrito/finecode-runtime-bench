@@ -16,6 +16,58 @@ if (args.Length == 1 && args[0] == "--version")
     Console.WriteLine("0.2.0-probe");
     return;
 }
+// Deterministic process-tree safety fixture; NOT Pi tool parity or production command.
+if (args.Length == 3 && args[0] == "process-tree-probe")
+{
+    string markerDir = args[1];
+    if (!int.TryParse(args[2], out int deadline) || deadline < 1 || deadline > 60000)
+    {
+        Console.Error.WriteLine("Invalid process-tree deadline");
+        Environment.ExitCode = 2;
+        return;
+    }
+    Directory.CreateDirectory(markerDir);
+    string self = Environment.ProcessPath ?? throw new IOException("Missing executable path");
+    var start = new ProcessStartInfo(self)
+    {
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true
+    };
+    start.ArgumentList.Add("process-tree-parent");
+    start.ArgumentList.Add(markerDir);
+    var result = await BoundedChild.Run(start, deadline);
+    if (result.TimedOut)
+    {
+        Console.Write("PROCESS_TREE_TIMEOUT");
+        Environment.ExitCode = 124;
+    }
+    else
+    {
+        Console.Error.WriteLine("Process unexpectedly completed");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+if (args.Length == 2 && args[0] == "process-tree-parent")
+{
+    string self = Environment.ProcessPath ?? throw new IOException("Missing executable path");
+    var grandchild = new ProcessStartInfo(self) { UseShellExecute = false };
+    grandchild.ArgumentList.Add("process-tree-grandchild");
+    grandchild.ArgumentList.Add(args[1]);
+    using var p = Process.Start(grandchild) ?? throw new IOException("Unable to spawn grandchild");
+    await Task.Delay(3500);
+    File.WriteAllText(Path.Combine(args[1], "parent-survived.txt"), "PARENT_SURVIVED");
+    await p.WaitForExitAsync();
+    return;
+}
+if (args.Length == 2 && args[0] == "process-tree-grandchild")
+{
+    await Task.Delay(3500);
+    File.WriteAllText(Path.Combine(args[1], "grandchild-survived.txt"), "GRANDCHILD_SURVIVED");
+    return;
+}
+
 // Bounded Pi read-text subset: text-only, below upstream truncation thresholds.
 if (args.Length >= 2 && args.Length <= 4 && args[0] == "read-subset")
 {
@@ -187,23 +239,16 @@ if (args.Length >= 4 && args.Length <= 6 && args[0] == "find-fd-subset")
         start.ArgumentList.Add("--");
         start.ArgumentList.Add(pattern);
         start.ArgumentList.Add(root);
-        using var process = Process.Start(start) ?? throw new IOException("Unable to start fd");
-        // Consume both pipes concurrently; bound child lifetime and kill tree on expiry.
-        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
-        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(timeoutMs);
-        try { await process.WaitForExitAsync(timeout.Token); }
-        catch (OperationCanceledException)
+        var execution = await BoundedChild.Run(start, timeoutMs);
+        if (execution.TimedOut)
         {
-            if (!process.HasExited) process.Kill(entireProcessTree: true);
-            await process.WaitForExitAsync();
             Console.Error.WriteLine("find-fd-subset timeout");
             Environment.ExitCode = 124;
             return;
         }
-        string stdout = await stdoutTask;
-        string stderr = await stderrTask;
-        if (process.ExitCode != 0 && stdout.Length == 0)
+        string stdout = execution.Stdout;
+        string stderr = execution.Stderr;
+        if (execution.ExitCode != 0 && stdout.Length == 0)
         {
             Console.Error.WriteLine("fd failed: " + stderr.Trim());
             Environment.ExitCode = 2;
