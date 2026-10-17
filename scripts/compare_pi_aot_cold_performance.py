@@ -40,7 +40,8 @@ def invoke(cmd):
             except (psutil.NoSuchProcess,psutil.AccessDenied): break
             time.sleep(.001)
         stdout,stderr=ps.communicate(timeout=10)
-        max_rss=max(max_rss,getattr(ps.memory_info(),"rss",0)) if ps.is_running() else max_rss
+        try: max_rss=max(max_rss,ps.memory_info().rss)
+        except (psutil.NoSuchProcess,psutil.AccessDenied): pass
     except Exception:
         ps.kill();ps.communicate()
         raise
