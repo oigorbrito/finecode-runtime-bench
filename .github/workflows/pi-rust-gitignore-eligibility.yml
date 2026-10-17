@@ -1,0 +1,55 @@
+name: Rust pinned port versus real Pi gitignore parity
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/pi-rust-gitignore-eligibility.yml'
+      - 'scripts/adapters/pi_rust_ignore_gap.rs'
+      - 'scripts/verify_rust_tool_gitignore_parity.py'
+      - 'scripts/pi_cold_tool.mjs'
+      - 'sources.json'
+permissions:
+  contents: read
+jobs:
+  rust-tool-eligibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, arch: linux-x64 }
+          - { os: ubuntu-24.04-arm, arch: linux-arm64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout immutable Pi and Rust port
+        run: |
+          python3 scripts/checkout.py pi_ts
+          python3 scripts/checkout.py pi_rust
+      - name: Build genuine pinned Pi
+        working-directory: vendor/pi_ts
+        run: |
+          npm install --ignore-scripts
+          npm run hydrate:model-data
+          npm run build:offline
+      - name: Prepare temporary Rust binary adapter
+        run: |
+          mkdir -p vendor/pi_rust/examples/tools/src/bin
+          cp scripts/adapters/pi_rust_ignore_gap.rs vendor/pi_rust/examples/tools/src/bin/finecode-gap.rs
+          printf '\ntokio-util = { workspace = true }\n' >> vendor/pi_rust/examples/tools/Cargo.toml
+      - name: Build exact Rust port tool implementation
+        working-directory: vendor/pi_rust
+        run: cargo build --release --manifest-path examples/tools/Cargo.toml --bin finecode-gap
+      - name: Execute real Pi and Rust over gitignored fixture
+        run: |
+          python3 scripts/verify_rust_tool_gitignore_parity.py --rust-binary vendor/pi_rust/target/release/finecode-gap --out results/rust-gitignore-${{ matrix.arch }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rust-gitignore-eligibility-${{ matrix.arch }}
+          path: results/rust-gitignore-${{ matrix.arch }}.json
+          if-no-files-found: ignore

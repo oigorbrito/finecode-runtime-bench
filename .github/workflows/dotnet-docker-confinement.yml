@@ -1,0 +1,37 @@
+name: C# Native AOT Docker confinement gate
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/dotnet-docker-confinement.yml'
+      - 'candidates/dotnet-aot/**'
+      - 'scripts/verify_dotnet_docker_isolation.py'
+permissions:
+  contents: read
+jobs:
+  linux-container:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, rid: linux-x64 }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Publish Native AOT for host architecture
+        run: dotnet publish candidates/dotnet-aot/Probe.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishAot=true -o candidates/dotnet-aot/out
+      - name: Build disposable nonroot image
+        run: docker build -f candidates/dotnet-aot/Dockerfile.sandbox -t finecode-dotnet-probe:local .
+      - name: Verify Docker resource flags and live denied operations
+        run: python3 scripts/verify_dotnet_docker_isolation.py --image finecode-dotnet-probe:local --out results/docker-confinement-${{ matrix.rid }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dotnet-docker-confinement-${{ matrix.rid }}
+          path: results/docker-confinement-${{ matrix.rid }}.json
+          if-no-files-found: ignore

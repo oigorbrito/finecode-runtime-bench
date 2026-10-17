@@ -1,0 +1,57 @@
+name: Pi Node Bun Go same-task warm benchmark
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/pi-node-bun-go-warm.yml'
+      - 'scripts/compare_pi_node_bun_go_warm.py'
+      - 'scripts/adapters/pi_go_warm_main.go'
+      - 'scripts/adapters/pi_ts_warm.mjs'
+      - 'sources.json'
+permissions:
+  contents: read
+jobs:
+  paired-warm:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, arch: linux-x64 }
+          - { os: ubuntu-24.04-arm, arch: linux-arm64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+      - name: Checkout exact pinned sources
+        run: |
+          python3 scripts/checkout.py pi_ts
+          python3 scripts/checkout.py pi_go
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vendor/pi_go/go.mod
+          cache: false
+      - name: Build official Pi
+        working-directory: vendor/pi_ts
+        run: |
+          npm install --ignore-scripts
+          npm run hydrate:model-data
+          npm run build:offline
+      - name: Build pinned Go tool adapter outside upstream source
+        run: |
+          mkdir -p vendor/pi_go/cmd/finecode-bench
+          cp scripts/adapters/pi_go_warm_main.go vendor/pi_go/cmd/finecode-bench/main.go
+          cd vendor/pi_go
+          go build -o ../../pi-go-warm-bench ./cmd/finecode-bench
+      - name: Compare warmed Node, Bun and Go on identical output-gated calls
+        run: |
+          python3 scripts/compare_pi_node_bun_go_warm.py --go-binary pi-go-warm-bench --pairs 90 --out results/pi-node-bun-go-${{ matrix.arch }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pi-node-bun-go-${{ matrix.arch }}
+          path: results/pi-node-bun-go-${{ matrix.arch }}.json
+          if-no-files-found: ignore

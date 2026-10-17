@@ -1,0 +1,26 @@
+name: Pinned Pi read grep find contract inventory
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/pi-tool-contract-inventory.yml'
+      - 'scripts/inventory_pi_tool_contracts.py'
+      - 'sources.json'
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exactly pinned TypeScript Pi
+        run: python3 scripts/checkout.py pi_ts
+      - name: Assert upstream read grep find API shape
+        run: python3 scripts/inventory_pi_tool_contracts.py --root vendor/pi_ts --out results/pi-tools-contract-inventory.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pinned-pi-tool-contract-inventory
+          path: results/pi-tools-contract-inventory.json
+          if-no-files-found: error

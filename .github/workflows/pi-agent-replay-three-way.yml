@@ -1,0 +1,57 @@
+name: True Pi Node Bun Go agent-loop offline replay
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/pi-agent-replay-three-way.yml'
+      - 'scripts/adapters/pi_ts_replay_agent.mjs'
+      - 'scripts/adapters/pi_go_replay_agent.go'
+      - 'scripts/compare_pi_replay_agent_loops.py'
+      - 'sources.json'
+permissions:
+  contents: read
+jobs:
+  agent-replay:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, arch: linux-x64 }
+          - { os: ubuntu-24.04-arm, arch: linux-arm64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+      - name: Clone exact immutable Pi and Go revisions
+        run: |
+          python3 scripts/checkout.py pi_ts
+          python3 scripts/checkout.py pi_go
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vendor/pi_go/go.mod
+          cache: false
+      - name: Build original pinned Pi
+        working-directory: vendor/pi_ts
+        run: |
+          npm install --ignore-scripts
+          npm run hydrate:model-data
+          npm run build:offline
+      - name: Compile real Go Agent replay harness
+        run: |
+          mkdir -p vendor/pi_go/cmd/finecode-agent-replay
+          cp scripts/adapters/pi_go_replay_agent.go vendor/pi_go/cmd/finecode-agent-replay/main.go
+          cd vendor/pi_go
+          go build -o ../../pi-go-agent-replay ./cmd/finecode-agent-replay
+      - name: Compare real agent loops with fixed offline provider responses
+        run: |
+          python3 scripts/compare_pi_replay_agent_loops.py --go-binary pi-go-agent-replay --rounds 20 --out results/agent-replay-${{ matrix.arch }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-replay-${{ matrix.arch }}
+          path: results/agent-replay-${{ matrix.arch }}.json
+          if-no-files-found: ignore

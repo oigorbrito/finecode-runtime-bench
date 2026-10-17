@@ -1,0 +1,4 @@
+FROM ubuntu:24.04
+COPY candidates/dotnet-aot/out/Probe /usr/local/bin/finecode-probe
+USER 65534:65534
+ENTRYPOINT ["/usr/local/bin/finecode-probe"]
