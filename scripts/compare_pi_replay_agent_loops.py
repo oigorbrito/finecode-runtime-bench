@@ -48,13 +48,22 @@ with tempfile.TemporaryDirectory() as temp:
       "import runpy,sys; f=runpy.run_path(sys.argv[1])['calculate']; assert all(f(n)==n*2 for n in [-13,-1,0,1,7,128])",
       str(filename)],capture_output=True,text=True,timeout=12)
     if test.returncode:raise AssertionError(f"{name}: correctness oracle FAILED {test.stderr}")
+   def text_parts(value):
+    if isinstance(value,str):return [value]
+    if isinstance(value,list):return [s for item in value for s in text_parts(item)]
+    if isinstance(value,dict):
+     if "text" in value:return text_parts(value["text"])
+     if "Text" in value:return text_parts(value["Text"])
+     if "content" in value:return text_parts(value["content"])
+     if "Content" in value:return text_parts(value["Content"])
+    return []
    baseline_contexts=results["node"]["model_contexts"]
    for candidate in ("bun","go"):
     contexts=results[candidate].get("model_contexts")
     if not contexts or len(contexts)!=5 or len(baseline_contexts)!=5:
      raise AssertionError(f"ELIMINATION_GATE missing model contexts round={idx} candidate={candidate}: {contexts}")
     for turn,(base,other) in enumerate(zip(baseline_contexts,contexts)):
-     if base["roles"]!=other["roles"] or base["system_prompt"]!=other["system_prompt"] or base["user_prompt"]!=other["user_prompt"]:
+     if base["roles"]!=other["roles"] or base["system_prompt"]!=other["system_prompt"] or text_parts(base["user_prompt"])!=text_parts(other["user_prompt"]):
       raise AssertionError(f"ELIMINATION_GATE model-facing context differs round={idx} turn={turn} candidate={candidate} node={base} candidate_context={other}")
    baseline_roles=results["node"]["message_roles"]
    for candidate in ("bun","go"):
