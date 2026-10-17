@@ -107,3 +107,18 @@ The first two CI attempts failed while resolving **test-adapter Cargo dependenci
 Workflow `.github/workflows/pi-node-bun-go-coding-task.yml` and harness `scripts/compare_pi_node_bun_go_coding_task.py` execute a real **four-tool coding chain** `write → edit → read → grep` in separately isolated temporary directories for Node, Bun and Go. The task starts with broken Python code (`return n + 1`) and edits it to `return n * 2`; a separately invoked Python oracle asserts correct behavior on six values including negative numbers. 24 randomized rounds per target, identical final source bytes, and identical read/grep text outputs are required, and no model or API call is used. Tool-chain time is measured separately from oracle invocation. Failures gate the workflow rather than being silently discarded. This is still a deterministic *tool-chain* test, not an autonomous LLM agent programming task.
 
 **Decision**: Results from true end-to-end agent loops (same replayed LLM outputs or identical model/provider responses, tokens and task corpus, equivalent capabilities and feature flags, memory including child processes) must precede any TypeScript core migration.
+
+### VERIFIED: multi-step code repair and executable correctness (2026-10-17)
+
+[GitHub Actions #39048384062](https://github.com/oigorbrito/finecode-runtime-bench/actions/runs/39048384062) completed **2/2 Linux jobs PASS** (x64 and ARM64). Three persistent candidate processes per runner — pinned Pi/Node, the same Pi code under Bun, and the actual pinned Go tool port — each executed **24 independent small Python repairs** using the original exported `write → edit → read → grep` tool APIs. The test starts from `return n + 1` and makes a precise edit to `return n * 2`. For every repaired file, the Python interpreter independently asserted results on six inputs including negatives. Final source bytes and the `read`/`grep` outputs had to be identical across all three runtimes. **24/24 correct tasks per runtime per OS** = **144 successful candidate-task executions total**; no observed wrong final files.
+
+| OS | Pi/Node median tool-chain ms | Pi/Bun median tool-chain ms | Go median tool-chain ms | Node/Go ratio | Bun/Go ratio |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Linux x64 | 5.2424 | 3.7888 | **0.5576** | 9.4× | 6.8× |
+| Linux ARM64 | 5.6481 | 3.8161 | **0.6376** | 8.9× | 6.0× |
+
+The timer covers four tool API calls; the Python program execution oracle is performed **after** the timer. The task sequence is predetermined rather than chosen by an LLM. Although this is much stronger than process startup or `read`/`grep` alone, it still does **not** show that Go beats Pi on autonomous code generation, token use, model latency, diverse codebases, or full agent quality. The measurement is a straightforward fixed-operations tool benchmark under warm processes; C# was not in this contest because its harness is only a bounded partial implementation, not a drop-in `write`/`edit` agent.
+
+Artifacts: `pi-node-bun-go-coding-linux-x64` and `pi-node-bun-go-coding-linux-arm64`, each containing round-level timings and success gating.
+
+**Decision within measured workload:** retain Go as **speed winner for the tested persistent coding-tool chains on both platforms**, with Bun as a source-preserving faster alternative to Node. Eliminate neither original Pi nor Bun from the agent-level contest. Any replacement recommendation requires equal feature coverage and model/replay agent-loop tasks, peak CPU/RAM including subprocesses, errors and token/cost quality. The earlier Rust and Python eliminations are **pinned-revision compatibility/eligibility eliminations** only.
