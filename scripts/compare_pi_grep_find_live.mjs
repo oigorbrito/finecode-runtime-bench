@@ -61,11 +61,32 @@ try{
   pinnedPiOutput:expectedIgnore, csharpOutput:observedIgnore,
   expectedDivergence:expectedIgnore==="No files found matching pattern" && observedIgnore==="ignored.tmp" &&
     ignoredCSharp.status===0});
+ // Genuine backend reuse: resolve the same fd executable used by Pi.
+ // This measures a C# wrapper around fd, NOT an independent pure-C# engine.
+ const {ensureTool}=await import(pathToFileURL(path.resolve("vendor/pi_ts/packages/coding-agent/dist/utils/tools-manager.js")).href);
+ const fdPath=await ensureTool("fd");
+ if(!fdPath)throw Error("Pi fd executable could not be resolved");
+ report.fdDelegation=[];
+ for(const [name,scenarioRoot,pattern] of [
+  ["ignored-at-root",ignoredRoot,"*.tmp"],
+  ["regular-repo-file",ignoredRoot,"*.gitignore"],
+  ["recursive-basename",root,"*.cs"],
+  ["one-file",root,"*.xyz"]
+ ]){
+   const tool=await find.execute("id",{path:scenarioRoot,pattern});
+   const upstream=tool.structuredContent??tool.content.find(x=>x.type==="text")?.text;
+   const run=spawnSync(path.resolve(exe),["find-fd-subset",scenarioRoot,pattern,fdPath],{timeout:10000});
+   if(run.error)throw run.error;
+   const observed=run.stdout.toString("utf8");
+   report.fdDelegation.push({name,pass:run.status===0 && upstream===observed,upstream,observed,code:run.status});
+ }
+
 }finally{rmSync(dir,{recursive:true,force:true});}
 const failures=[...report.grep,...report.find].filter(x=>!x.pass);
 report.grepPass=report.grep.filter(x=>x.pass).length;
 report.findPass=report.find.filter(x=>x.pass).length;
-report.fail=failures.length+report.knownGaps.filter(x=>!x.expectedDivergence).length;
+report.fdDelegationPass=report.fdDelegation.filter(x=>x.pass).length;
+report.fail=failures.length+report.knownGaps.filter(x=>!x.expectedDivergence).length+report.fdDelegation.filter(x=>!x.pass).length;
 writeFileSync(out,JSON.stringify(report,null,2)+"\n");
-console.log(JSON.stringify({grepPass:report.grepPass,findPass:report.findPass,knownGaps:report.knownGaps,failures},null,2));
+console.log(JSON.stringify({grepPass:report.grepPass,findPass:report.findPass,fdDelegationPass:report.fdDelegationPass,fdDelegation:report.fdDelegation,knownGaps:report.knownGaps,failures},null,2));
 if(report.fail)process.exitCode=1;
