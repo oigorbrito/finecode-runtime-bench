@@ -43,7 +43,7 @@ jobs:
           printf '\ntokio-util = { workspace = true }\n' >> vendor/pi_rust/examples/tools/Cargo.toml
       - name: Build exact Rust port tool implementation
         working-directory: vendor/pi_rust
-        run: cargo build --offline --release --manifest-path examples/tools/Cargo.toml --bin finecode-gap
+        run: cargo build --release --manifest-path examples/tools/Cargo.toml --bin finecode-gap
       - name: Execute real Pi and Rust over gitignored fixture
         run: |
           python3 scripts/verify_rust_tool_gitignore_parity.py --rust-binary vendor/pi_rust/target/release/finecode-gap --out results/rust-gitignore-${{ matrix.arch }}.json
