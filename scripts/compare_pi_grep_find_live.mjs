@@ -9,7 +9,7 @@ const basedir=path.resolve("vendor/pi_ts/packages/coding-agent/dist/core/tools")
 const {createGrepToolDefinition}=await import(pathToFileURL(path.join(basedir,"grep.js")).href);
 const {createFindToolDefinition}=await import(pathToFileURL(path.join(basedir,"find.js")).href);
 const dir=mkdtempSync(path.join(tmpdir(),"finecode-direct-tools-"));
-const report={kind:"real_pinned_pi_tools_bounded_comparison",grep:[],find:[]};
+const report={kind:"real_pinned_pi_tools_bounded_comparison",grep:[],find:[],knownGaps:[]};
 function check(group,name,expected,argv){
  const run=spawnSync(path.resolve(exe),argv,{timeout:10000});
  if(run.error)throw run.error;
@@ -43,11 +43,29 @@ try{
   const pi=await find.execute("id",{path:root,pattern});
   check("find",name,pi.structuredContent??pi.content.find(x=>x.type==="text")?.text,["find-subset",root,pattern]);
  }
+
+ // Negative-control case: Pi honors gitignore; the bounded C# find-subset does not.
+ // Explicitly preserve this as a KNOWN DIFFERENCE, not a parity pass.
+ const ignoredRoot=path.join(dir,"ignored-repo");
+ mkdirSync(ignoredRoot);
+ const initialized=spawnSync("git",["init","--quiet",ignoredRoot],{timeout:10000});
+ if(initialized.status!==0)throw Error("git init fixture failed: "+initialized.stderr.toString());
+ writeFileSync(path.join(ignoredRoot,".gitignore"),"*.tmp\n");
+ writeFileSync(path.join(ignoredRoot,"ignored.tmp"),"ignored fixture");
+ const ignoredPi=await find.execute("id",{path:ignoredRoot,pattern:"*.tmp"});
+ const expectedIgnore=ignoredPi.structuredContent??ignoredPi.content.find(x=>x.type==="text")?.text;
+ const ignoredCSharp=spawnSync(path.resolve(exe),["find-subset",ignoredRoot,"*.tmp"],{timeout:10000});
+ if(ignoredCSharp.error)throw ignoredCSharp.error;
+ const observedIgnore=ignoredCSharp.stdout.toString("utf8");
+ report.knownGaps.push({name:"gitignore-exclusion-not-implemented",
+  pinnedPiOutput:expectedIgnore, csharpOutput:observedIgnore,
+  expectedDivergence:expectedIgnore==="No files found matching pattern" && observedIgnore==="ignored.tmp" &&
+    ignoredCSharp.status===0});
 }finally{rmSync(dir,{recursive:true,force:true});}
 const failures=[...report.grep,...report.find].filter(x=>!x.pass);
 report.grepPass=report.grep.filter(x=>x.pass).length;
 report.findPass=report.find.filter(x=>x.pass).length;
-report.fail=failures.length;
+report.fail=failures.length+report.knownGaps.filter(x=>!x.expectedDivergence).length;
 writeFileSync(out,JSON.stringify(report,null,2)+"\n");
-console.log(JSON.stringify({grepPass:report.grepPass,findPass:report.findPass,failures},null,2));
-if(failures.length)process.exitCode=1;
+console.log(JSON.stringify({grepPass:report.grepPass,findPass:report.findPass,knownGaps:report.knownGaps,failures},null,2));
+if(report.fail)process.exitCode=1;
