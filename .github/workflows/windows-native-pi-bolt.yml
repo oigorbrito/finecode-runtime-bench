@@ -29,6 +29,16 @@ jobs:
           {"run_id":"mock-1","task_id":"python-1","variant":"pi","request_index":0,"input_tokens":12,"output_tokens":4,"cache_read_tokens":2}
           {"run_id":"mock-1","task_id":"python-1","variant":"pi","request_index":1,"input_tokens":8,"output_tokens":3,"cache_read_tokens":1}
           '@ | Set-Content -Encoding utf8 mock-token-events.jsonl
+          @'
+          {"type":"session","version":3}
+          {"type":"message","message":{"role":"user","content":[{"type":"text","text":"do not export"}]}}
+          {"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"private response"}],"usage":{"input":12,"output":4,"cacheRead":2,"cacheWrite":0,"totalTokens":18}}}
+          {"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"private response 2"}],"usage":{"input":8,"output":3,"cacheRead":1,"cacheWrite":0,"totalTokens":12}}}
+          '@ | Set-Content -Encoding utf8 mock-pi-session.jsonl
+          python scripts/pi_session_usage.py mock-pi-session.jsonl --run-id mock-1 --task-id python-1 --variant pi --out mock-pi-events.jsonl
+          python scripts/token_usage.py mock-pi-events.jsonl --out mock-pi-summary.jsonl
+          python -c "import json; x=json.load(open('mock-pi-summary.jsonl',encoding='utf-8')); assert (x['input_tokens'],x['output_tokens'],x['cache_read_tokens']) == (20,7,3); assert x['usage_complete']"
+          python -c "from pathlib import Path; assert 'private response' not in Path('mock-pi-events.jsonl').read_text()"
           python scripts/token_usage.py mock-token-events.jsonl --out mock-token-summary.jsonl
           python -c "import json; x=json.load(open('mock-token-summary.jsonl',encoding='utf-8')); assert (x['input_tokens'],x['output_tokens'],x['cache_read_tokens']) == (20,7,3); assert x['reasoning_tokens'] is None; assert x['usage_complete']"
       - name: Checkout original and Pi-Bolt fork
@@ -104,6 +114,7 @@ jobs:
         with:
           name: windows-native-pi-bolt-evidence
           path: |
+            mock-pi-summary.jsonl
             mock-token-summary.jsonl
             original-sha.txt
             bolt-sha.txt
