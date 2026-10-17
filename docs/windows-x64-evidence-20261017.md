@@ -22,3 +22,9 @@ Windows Server 2025 x64 GitHub runner. Official source pinned in `sources.json`.
 ## Engineering assessment
 
 CLI build/run success does not establish functional parity. Windows currently has upstream test compatibility gaps for TS and Go and a Rust test that did not reliably reproduce. The benchmark harness must not patch or skip those official tests. The FineCode main repository and candidate source trees remain untouched. No automatic merge.
+
+## Rust path-alias evidence (source-level diagnosis)
+
+At pinned `pi_rust` SHA, `crates/rpi-cli/src/updates.rs:2643` asserts that the error message contains `real_file.display().to_string()`. The observed error for the linked-file fixture contains `C:\\Users\\runneradmin\\...\\real-file.exe`, whereas the fixture path uses `C:\\Users\\RUNNER~1\\...\\real-file.exe`. This is a Windows short-name (8.3) versus long-name string mismatch. Importantly the diagnostic states the leaf is **a link or junction**, therefore it is not evidence that the symlink leaf was accepted. The full official test gate still fails. No source modification or assertion removal is warranted in this benchmark.
+
+Do not mistake a green `continue-on-error` *step conclusion* for passing tests: read the explicit `steps.official_rust.outcome` and raw test logs.
