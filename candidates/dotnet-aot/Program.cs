@@ -137,12 +137,17 @@ if (args.Length == 3 && args[0] == "find-subset")
 
 // Delegate-only compatibility experiment: share Pi's fd engine. Native AOT does
 // not subsume fd: the caller must explicitly supply its resolved executable.
-if (args.Length == 4 && args[0] == "find-fd-subset")
+if (args.Length >= 4 && args.Length <= 6 && args[0] == "find-fd-subset")
 {
     string root = Path.GetFullPath(args[1]);
     string pattern = args[2];
     string fdPath = args[3];
-    if (!Directory.Exists(root) || pattern.Length == 0 || fdPath.Length == 0)
+    int maxResults = args.Length >= 5 && int.TryParse(args[4], out int n) ? n : 1000;
+    int timeoutMs = args.Length == 6 && int.TryParse(args[5], out int t) ? t : 15000;
+    if (!Directory.Exists(root) || pattern.Length == 0 || fdPath.Length == 0 ||
+        maxResults < 1 || maxResults > 1000 || timeoutMs < 1 || timeoutMs > 60000 ||
+        (args.Length >= 5 && !int.TryParse(args[4], out _)) ||
+        (args.Length == 6 && !int.TryParse(args[5], out _)))
     {
         Console.Error.WriteLine("find-fd-subset: invalid directory, pattern or fd");
         Environment.ExitCode = 2;
@@ -171,7 +176,7 @@ if (args.Length == 4 && args[0] == "find-fd-subset")
         }
         if (!inGitRepo) start.ArgumentList.Add("--no-require-git");
         start.ArgumentList.Add("--max-results");
-        start.ArgumentList.Add("1000");
+        start.ArgumentList.Add(maxResults.ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (pattern.Contains('/'))
         {
             start.ArgumentList.Add("--full-path");
@@ -183,9 +188,21 @@ if (args.Length == 4 && args[0] == "find-fd-subset")
         start.ArgumentList.Add(pattern);
         start.ArgumentList.Add(root);
         using var process = Process.Start(start) ?? throw new IOException("Unable to start fd");
-        string stdout = process.StandardOutput.ReadToEnd();
-        string stderr = process.StandardError.ReadToEnd();
-        process.WaitForExit();
+        // Consume both pipes concurrently; bound child lifetime and kill tree on expiry.
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(timeoutMs);
+        try { await process.WaitForExitAsync(timeout.Token); }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync();
+            Console.Error.WriteLine("find-fd-subset timeout");
+            Environment.ExitCode = 124;
+            return;
+        }
+        string stdout = await stdoutTask;
+        string stderr = await stderrTask;
         if (process.ExitCode != 0 && stdout.Length == 0)
         {
             Console.Error.WriteLine("fd failed: " + stderr.Trim());
@@ -210,8 +227,8 @@ if (args.Length == 4 && args[0] == "find-fd-subset")
         else
         {
             Console.Write(string.Join("\n", results));
-            if (results.Count >= 1000)
-                Console.Write("\n\n[1000 results limit reached. Use limit=2000 for more, or refine pattern]");
+            if (results.Count >= maxResults)
+                Console.Write($"\n\n[{maxResults} results limit reached. Use limit={maxResults * 2} for more, or refine pattern]");
         }
         return;
     }
