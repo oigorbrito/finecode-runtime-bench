@@ -3,6 +3,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 if (args.Length == 1 && args[0] == "--help")
 {
@@ -67,32 +68,46 @@ if (args.Length >= 2 && args.Length <= 4 && args[0] == "read-subset")
 }
 
 
-// Deliberately bounded adapters: single-file literal grep and nonrecursive basename-glob find.
-// No claim of full upstream grep/find tool parity.
-if (args.Length == 3 && args[0] == "grep-subset")
+// Bounded single-file grep: literal/regex and optional case folding, no context/globs/ignore.
+if (args.Length >= 3 && args.Length <= 5 && args[0] == "grep-subset")
 {
+    string file = args[1], pattern = args[2];
+    string mode = args.Length >= 4 ? args[3] : "literal";
+    bool ignoreCase = args.Length >= 5 && args[4] == "ignore-case";
+    if (pattern.Length == 0 || (mode != "literal" && mode != "regex") ||
+        (args.Length == 5 && args[4] != "ignore-case"))
+    {
+        Console.Error.WriteLine("Invalid grep-subset arguments");
+        Environment.ExitCode = 2;
+        return;
+    }
     try
     {
-        string file = args[1], needle = args[2];
-        if (needle.Length == 0) { Environment.ExitCode = 2; return; }
+        Regex? regex = mode == "regex" ?
+            new Regex(pattern, RegexOptions.CultureInvariant |
+                (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None),
+                TimeSpan.FromSeconds(1)) : null;
         string[] lines = File.ReadAllText(file, Encoding.UTF8).Split('\n');
         var output = new System.Collections.Generic.List<string>();
         for (int i = 0; i < lines.Length; i++)
         {
             string line = lines[i].TrimEnd('\r');
-            if (line.Contains(needle, StringComparison.Ordinal))
-                output.Add($"{Path.GetFileName(file)}:{i + 1}: {line}");
+            bool matched = regex is not null ? regex.IsMatch(line) :
+                line.Contains(pattern, ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+            if (matched) output.Add($"{Path.GetFileName(file)}:{i + 1}: {line}");
         }
         Console.Write(output.Count == 0 ? "No matches found" : string.Join("\n", output));
         return;
     }
-    catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException
+        or ArgumentException or RegexMatchTimeoutException)
     {
         Console.Error.WriteLine("grep-subset failed: " + e.GetType().Name);
         Environment.ExitCode = 2;
         return;
     }
 }
+// Bounded recursive file discovery using basename glob. No .gitignore or directory matches.
 if (args.Length == 3 && args[0] == "find-subset")
 {
     try
@@ -100,11 +115,11 @@ if (args.Length == 3 && args[0] == "find-subset")
         string root = args[1], pattern = args[2];
         if (!Directory.Exists(root)) { Console.Error.WriteLine("Path not found"); Environment.ExitCode = 2; return; }
         var output = new System.Collections.Generic.List<string>();
-        foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.TopDirectoryOnly))
+        foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
         {
             string name = Path.GetFileName(file);
             if (System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(pattern, name, ignoreCase: false))
-                output.Add(name);
+                output.Add(Path.GetRelativePath(root, file).Replace('\\', '/'));
         }
         output.Sort(StringComparer.Ordinal);
         Console.Write(output.Count == 0 ? "No files found matching pattern" : string.Join("\n", output));
