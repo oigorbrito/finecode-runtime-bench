@@ -1,0 +1,14 @@
+{
+  "pi_ts": {
+    "url": "https://github.com/earendil-works/pi.git",
+    "sha": "8efd314fa3d3232ce197d8d7a6a5660530b9d83e"
+  },
+  "pi_rust": {
+    "url": "https://github.com/bigfish1913/pi-rust.git",
+    "sha": "b6b8e8311a4d6fd5dd1dc9e436e96f5d4cd22a52"
+  },
+  "pi_python": {
+    "url": "https://github.com/openxjarvis/pi-mono-python.git",
+    "sha": "95c8dc1ffa260bc0080c00c1f66e19844e8f53a6"
+  }
+}
