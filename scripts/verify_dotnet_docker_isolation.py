@@ -50,28 +50,43 @@ try:
             "scope":"No-network, nonroot read-only disposable container; no hostile code, host escape, or Windows parity tested."}
 finally:
     docker("rm","-f",cid)
-# Second disposable container: actively verify cgroup memory enforcement.
-# Do not run the memory allocation test outside Docker.
-created_memory=docker("create",*flags,a.image,"sandbox-memory-probe")
-assert created_memory.returncode==0,created_memory.stderr
-memory_cid=created_memory.stdout.strip()
-try:
-    memory_run=docker("start","-a",memory_cid,timeout=45)
-    memory_state=docker("inspect",memory_cid)
-    assert memory_state.returncode==0,memory_state.stderr
-    state=json.loads(memory_state.stdout)[0]["State"]
-    assert state["OOMKilled"] is True and state["ExitCode"]==137, {
-        "state":state,"stdout":memory_run.stdout,"stderr":memory_run.stderr
-    }
-    result["memory_enforcement"]={
-        "container_oom_killed":True,
-        "container_exit_code":137,
-        "requested_allocation_bytes":512 * 1024 * 1024,
-        "configured_memory_cap_bytes":128 * 1024 * 1024,
-        "scope":"Docker cgroup OOM kill in a disposable container only"
-    }
-finally:
-    docker("rm","-f",memory_cid)
+# Differential memory test: identical 512 MiB allocation, two separate containers.
+# A 128 MiB cap should refuse it; 768 MiB must permit the same work. Do not
+# conflate .NET OutOfMemoryException with Linux kernel OOMKilled=true.
+memory_evidence={}
+for label, memory_limit in (("constrained","128m"),("control","768m")):
+    configured=list(flags)
+    configured[configured.index("--memory")+1]=memory_limit
+    configured[configured.index("--memory-swap")+1]=memory_limit
+    created_memory=docker("create",*configured,a.image,"sandbox-memory-probe")
+    assert created_memory.returncode==0,created_memory.stderr
+    memory_cid=created_memory.stdout.strip()
+    try:
+        memory_run=docker("start","-a",memory_cid,timeout=45)
+        memory_state=docker("inspect",memory_cid)
+        assert memory_state.returncode==0,memory_state.stderr
+        state=json.loads(memory_state.stdout)[0]["State"]
+        memory_evidence[label]={
+            "memory_cap":memory_limit,"oom_killed":state["OOMKilled"],
+            "exit_code":state["ExitCode"],"stdout":memory_run.stdout.strip(),
+            "managed_oom_exception":"OutOfMemoryException" in memory_run.stderr
+        }
+    finally:
+        docker("rm","-f",memory_cid)
+limited=memory_evidence["constrained"]
+control=memory_evidence["control"]
+assert limited["exit_code"]!=0 and (
+    limited["oom_killed"] or limited["managed_oom_exception"]
+), memory_evidence
+assert control["exit_code"]==0 and control["stdout"]=="MEMORY_ALLOCATION_COMPLETED",memory_evidence
+assert not control["oom_killed"] and not control["managed_oom_exception"],memory_evidence
+result["memory_enforcement"]={
+    "requested_allocation_bytes":512*1024*1024,
+    "differential_result":"PASS",
+    "limited":limited,
+    "control":control,
+    "interpretation":"Restricted memory prevents allocation while 768 MiB permits it; distinguish managed OOM from kernel OOM."
+}
 
 dest=Path(a.out)
 dest.parent.mkdir(parents=True,exist_ok=True)
