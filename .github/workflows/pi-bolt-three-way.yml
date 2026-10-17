@@ -1,0 +1,65 @@
+name: Pi upstream vs Pi-Bolt isolated vs AOT
+on:
+  push:
+    branches: [bench-pi-bolt-isolated-vs-full]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  three-way:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Fetch original and optimized Pi sources
+        run: |
+          git clone --depth 1 https://github.com/opensec-git/Pi-Bolt.git bolt
+          git clone --depth 1 --branch v1.1.0 https://github.com/earendil-works/pi.git original
+          git -C bolt rev-parse HEAD | tee bolt-sha.txt
+          git -C original rev-parse HEAD | tee original-sha.txt
+          cat bolt/VERSION
+      - name: Build original Pi and fork Pi under identical Node
+        run: |
+          cd original
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          cd ../bolt
+          scripts/prepare-pi.sh
+      - name: Prepare Pi-Bolt AOT executable
+        run: |
+          cd bolt
+          scripts/fetch-runtime.sh
+          scripts/build-pi.sh --out out/pi-bolt
+          out/pi-bolt/pi --version
+      - name: End-to-end tool-output parity
+        run: |
+          cd bolt
+          python3 bench/e2e_tools.py \
+            --reference "upstream=node $GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" \
+            --build "isolated=node $GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js" \
+            --build "full=$GITHUB_WORKSPACE/bolt/out/pi-bolt/pi"
+      - name: Interleaved performance on same runner
+        run: |
+          cd bolt
+          python3 bench/benchmark.py --runs 5 --warmup 1 --out "$GITHUB_WORKSPACE/three-way.jsonl" \
+            --build "upstream=node $GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" \
+            --build "isolated=node $GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js" \
+            --build "full=$GITHUB_WORKSPACE/bolt/out/pi-bolt/pi"
+      - name: Preserve evidence even if failed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-bolt-three-way-evidence
+          path: |
+            original-sha.txt
+            bolt-sha.txt
+            three-way.jsonl
+            bolt/.work/prepare-pi.log
+          if-no-files-found: ignore
