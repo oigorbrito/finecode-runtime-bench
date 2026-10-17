@@ -38,7 +38,7 @@ func main(){
    idx:=0
    stream:=func(ctx context.Context,model *ai.Model,req ai.Context,opts *ai.SimpleStreamOptions)*ai.AssistantMessageEventStream{
     reply.PromptSeen = reply.PromptSeen || strings.Contains(req.SystemPrompt,"Offline deterministic coding task.")
-    roles:=[]string{"system"};var userPrompt any;for _,m:=range req.Messages{roles=append(roles,string(m.MessageRole()));if m.MessageRole()=="user" && userPrompt==nil{data,_:=json.Marshal(m);var obj map[string]any;_ = json.Unmarshal(data,&obj);if v,ok:=obj["content"];ok{userPrompt=v}}};reply.ModelContexts=append(reply.ModelContexts,ModelContext{Roles:roles,SystemPrompt:req.SystemPrompt,UserPrompt:userPrompt})
+    roles:=[]string{"system"};var userPrompt any;for _,m:=range req.Messages{roles=append(roles,string(m.MessageRole()));if m.MessageRole()=="user" && userPrompt==nil{data,_:=json.Marshal(m);var obj map[string]any;_ = json.Unmarshal(data,&obj);if v,ok:=obj["content"];ok{userPrompt=v}else if v,ok:=obj["Content"];ok{userPrompt=v}}};reply.ModelContexts=append(reply.ModelContexts,ModelContext{Roles:roles,SystemPrompt:req.SystemPrompt,UserPrompt:userPrompt})
     var msg *ai.AssistantMessage
     if idx<len(calls){msg=&ai.AssistantMessage{Content:ai.ContentList{calls[idx]},StopReason:ai.StopToolUse,Model:"replay"}}else{
      msg=&ai.AssistantMessage{Content:ai.ContentList{ai.TextContent{Text:"task finished"}},StopReason:ai.StopStop,Model:"replay"}
