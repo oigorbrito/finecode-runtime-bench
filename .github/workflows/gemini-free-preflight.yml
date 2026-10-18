@@ -1,0 +1,40 @@
+name: Gemini Free one-call preflight
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fetch pinned Gemini smoke from experimental branch
+        env:
+          SCRIPT_SHA: 09dc1804e95c43d6ff487afc7227b2dc2e50badd
+        run: |
+          curl --fail --silent --show-error --location --retry 2 \
+            "https://raw.githubusercontent.com/oigorbrito/finecode-runtime-bench/${SCRIPT_SHA}/scripts/gemini_free_smoke.py" \
+            -o gemini_free_smoke.py
+          python -m py_compile gemini_free_smoke.py
+      - name: Validate Gemini repository secret
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo 'FAIL: GEMINI_API_KEY missing'
+            exit 1
+          fi
+          echo 'PASS: GEMINI_API_KEY available'
+      - name: Execute one Gemini free-tier request
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python gemini_free_smoke.py
+          test -s gemini-usage-events.jsonl
+          python -c "import json; x=json.loads(open('gemini-usage-events.jsonl').read()); assert x['provider_reported_total_tokens'] > 0; print('PASS: provider-reported token usage captured')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gemini-free-usage
+          path: gemini-usage-events.jsonl
+          if-no-files-found: error
+          retention-days: 7
