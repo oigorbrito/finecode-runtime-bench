@@ -1,0 +1,135 @@
+name: Windows native Pi and Pi-Bolt
+on:
+  push:
+    branches: [bench-windows-native-pi-bolt]
+  pull_request:
+    branches: [bench-pi-bolt-isolated-vs-full]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-native:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Validate token usage accounting (no paid API)
+        run: |
+          python -m unittest discover -s scripts -p 'test_*usage.py' -v
+          python -m unittest discover -s scripts -p 'test_compare_token_usage.py' -v
+          @'
+          {"run_id":"mock-1","task_id":"python-1","variant":"pi","request_index":0,"input_tokens":12,"output_tokens":4,"cache_read_tokens":2}
+          {"run_id":"mock-1","task_id":"python-1","variant":"pi","request_index":1,"input_tokens":8,"output_tokens":3,"cache_read_tokens":1}
+          '@ | Set-Content -Encoding utf8 mock-token-events.jsonl
+          @'
+          {"type":"session","version":3}
+          {"type":"message","message":{"role":"user","content":[{"type":"text","text":"do not export"}]}}
+          {"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"private response"}],"usage":{"input":12,"output":4,"cacheRead":2,"cacheWrite":0,"totalTokens":18}}}
+          {"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"private response 2"}],"usage":{"input":8,"output":3,"cacheRead":1,"cacheWrite":0,"totalTokens":12}}}
+          '@ | Set-Content -Encoding utf8 mock-pi-session.jsonl
+          python scripts/pi_session_usage.py mock-pi-session.jsonl --run-id mock-1 --task-id python-1 --variant pi --out mock-pi-events.jsonl
+          python scripts/token_usage.py mock-pi-events.jsonl --out mock-pi-summary.jsonl
+          python -c "import json; x=json.load(open('mock-pi-summary.jsonl',encoding='utf-8')); assert (x['input_tokens'],x['output_tokens'],x['cache_read_tokens']) == (20,7,3); assert x['usage_complete']"
+          python -c "from pathlib import Path; assert 'private response' not in Path('mock-pi-events.jsonl').read_text()"
+          @'
+          {"run_id":"paired-1","task_id":"python-1","variant":"pi","request_index":0,"input_tokens":90,"output_tokens":10,"provider_reported_total_tokens":100}
+          {"run_id":"paired-1","task_id":"python-1","variant":"bolt","request_index":0,"input_tokens":70,"output_tokens":10,"provider_reported_total_tokens":80}
+          '@ | Set-Content -Encoding utf8 mock-paired-events.jsonl
+          python scripts/token_usage.py mock-paired-events.jsonl --out mock-paired-summary.jsonl
+          python scripts/compare_token_usage.py mock-paired-summary.jsonl --baseline pi --candidate bolt | Set-Content -Encoding utf8 mock-paired-comparison.jsonl
+          python -c "import json; x=json.load(open('mock-paired-comparison.jsonl',encoding='utf-8-sig')); assert x['candidate_delta_pct'] == -20.0"
+          python scripts/token_usage.py mock-token-events.jsonl --out mock-token-summary.jsonl
+          python -c "import json; x=json.load(open('mock-token-summary.jsonl',encoding='utf-8')); assert (x['input_tokens'],x['output_tokens'],x['cache_read_tokens']) == (20,7,3); assert x['reasoning_tokens'] is None; assert x['usage_complete']"
+      - name: Checkout original and Pi-Bolt fork
+        run: |
+          git clone --depth 1 --branch v1.3.0 https://github.com/earendil-works/pi.git original
+          git clone --depth 1 --branch pi-bolt https://github.com/opensec-git/Pi-Bolt.git bolt
+          $sources = Get-Content bolt/sources.json -Raw | ConvertFrom-Json
+          if ($sources.pi.tag -ne 'v1.3.0') { throw "Pi-Bolt upstream tag changed: $($sources.pi.tag)" }
+          git -C original rev-parse HEAD | Out-File -Encoding utf8 original-sha.txt
+          git -C bolt rev-parse HEAD | Out-File -Encoding utf8 bolt-sha.txt
+          node --version
+          bun --version
+      - name: Build original Pi
+        working-directory: original
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+      - name: Build Pi-Bolt fork as normal Node project
+        working-directory: bolt
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build:offline
+      - name: Verify native Windows Node baselines
+        run: |
+          node original/packages/coding-agent/dist/bundle/cli.js --version
+          node bolt/packages/coding-agent/dist/bundle/cli.js --version
+      - name: Run native Windows correctness parity
+        working-directory: bolt
+        run: |
+          python bench/e2e_tools.py --reference "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "fork=node $env:GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js"
+      - name: Benchmark native Windows Node implementations
+        working-directory: bolt
+        run: |
+          python bench/benchmark.py --runs 15 --warmup 3 --out "$env:GITHUB_WORKSPACE/windows-native.jsonl" --build "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "fork=node $env:GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js"
+      - name: Install and validate native Pi-Bolt AOT on Windows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not $env:GH_TOKEN) { throw "GITHUB_TOKEN unavailable for authenticated release metadata" }
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/opensec-git/Pi-Bolt/releases/latest" -Headers @{ "User-Agent" = "FineCode-benchmark"; "Authorization" = "Bearer $env:GH_TOKEN"; "X-GitHub-Api-Version" = "2022-11-28" }
+          $asset = $release.assets | Where-Object { $_.name -match "^pi-bolt-win32-x64(?:-baseline)?\.zip$" } | Select-Object -First 1
+          if (-not $asset) { "SKIP: no matching native Windows x64 ZIP release asset" | Tee-Object -FilePath native-aot-status.txt; exit 0 }
+          "asset=$($asset.name)" | Out-File native-aot-status.txt
+          "release_tag=$($release.tag_name)" | Add-Content native-aot-status.txt
+          "release_published_at=$($release.published_at)" | Add-Content native-aot-status.txt
+          "release_target_commitish=$($release.target_commitish)" | Add-Content native-aot-status.txt
+          "asset_digest=$($asset.digest)" | Add-Content native-aot-status.txt
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile pi-bolt-win.zip
+          $actualHash = (Get-FileHash pi-bolt-win.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "download_sha256=$actualHash" | Add-Content native-aot-status.txt
+          if ($asset.digest -and $asset.digest -match "^sha256:(.+)$" -and $actualHash -ne $Matches[1].ToLowerInvariant()) { throw "AOT asset SHA256 mismatch" }
+          Expand-Archive pi-bolt-win.zip -DestinationPath pi-bolt-native
+          $exe = Get-ChildItem pi-bolt-native -Recurse -Filter "*.exe" | Where-Object { $_.Name -match "pi" } | Select-Object -First 1
+          if (-not $exe) { throw "No Pi executable found in downloaded release asset" }
+          & $exe.FullName --version
+          python bolt/bench/e2e_tools.py --reference "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "native=$($exe.FullName)"
+          python bolt/bench/benchmark.py --runs 15 --warmup 3 --out "$env:GITHUB_WORKSPACE/windows-native-aot.jsonl" --build "original=node $env:GITHUB_WORKSPACE/original/packages/coding-agent/dist/bundle/cli.js" --build "fork=node $env:GITHUB_WORKSPACE/bolt/packages/coding-agent/dist/bundle/cli.js" --build "native=$($exe.FullName)"
+      - name: Record Pi-Bolt native Windows support
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $platform = "windows-x64"
+          $uri = "https://api.github.com/repos/opensec-git/Pi-Bolt/releases/latest"
+          $release = Invoke-RestMethod -Uri $uri -Headers @{ "User-Agent" = "FineCode-benchmark"; "Authorization" = "Bearer $env:GH_TOKEN"; "X-GitHub-Api-Version" = "2022-11-28" }
+          $release.assets | Select-Object -ExpandProperty name | Out-File -Encoding utf8 pi-bolt-release-assets.txt
+          $native = @($release.assets | Where-Object { $_.name -match "windows|win32|win-x64" })
+          "native_windows_assets=$($native.Count)" | Out-File -Encoding utf8 pi-bolt-windows-support.txt
+          if ($native.Count -eq 0) { "Native Windows AOT binary unavailable in latest release; NOT benchmarked." | Add-Content pi-bolt-windows-support.txt }
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-native-pi-bolt-evidence
+          path: |
+            mock-paired-comparison.jsonl
+            mock-pi-summary.jsonl
+            mock-token-summary.jsonl
+            original-sha.txt
+            bolt-sha.txt
+            windows-native.jsonl
+            windows-native-aot.jsonl
+            native-aot-status.txt
+            pi-bolt-release-assets.txt
+            pi-bolt-windows-support.txt
+          if-no-files-found: ignore
