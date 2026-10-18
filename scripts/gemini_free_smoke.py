@@ -5,7 +5,7 @@ import sys
 import urllib.error
 import urllib.request
 
-MODEL = "gemini-2.5-flash"
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 URL = "https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent"
 
 def main():
@@ -13,7 +13,7 @@ def main():
     if not key:
         print("FAIL: GEMINI_API_KEY missing")
         return 1
-    payload = {
+    # Verify which generateContent models this key can actually access.\n    list_req = urllib.request.Request(\n        "https://generativelanguage.googleapis.com/v1beta/models?pageSize=100",\n        headers={"x-goog-api-key": key},\n    )\n    try:\n        with urllib.request.urlopen(list_req, timeout=30) as response:\n            catalog = json.load(response)\n    except urllib.error.HTTPError as exc:\n        print("FAIL: Gemini models listing HTTP status", exc.code)\n        return 1\n    except Exception as exc:\n        print("FAIL: Gemini models listing transport error:", type(exc).__name__)\n        return 1\n    supported = [item.get("name", "").removeprefix("models/")\n                 for item in catalog.get("models", [])\n                 if "generateContent" in item.get("supportedGenerationMethods", [])]\n    if MODEL not in supported:\n        print("FAIL: requested Gemini model not available for this key:", MODEL)\n        print("Available generateContent models:", ", ".join(supported[:30]))\n        return 1\n    payload = {
         "contents": [{"role": "user", "parts": [{"text": "Reply with exactly OK."}]}],
         "generationConfig": {"temperature": 0, "maxOutputTokens": 64,
                              "thinkingConfig": {"thinkingBudget": 0}},
