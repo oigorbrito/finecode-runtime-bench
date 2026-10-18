@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Fetch pinned Gemini smoke from experimental branch
         env:
-          SCRIPT_SHA: 09dc1804e95c43d6ff487afc7227b2dc2e50badd
+          SCRIPT_SHA: 7191c25cc06abb3244b19b3dc922fdece13c2c4e
         run: |
           curl --fail --silent --show-error --location --retry 2 \
             "https://raw.githubusercontent.com/oigorbrito/finecode-runtime-bench/${SCRIPT_SHA}/scripts/gemini_free_smoke.py" \
